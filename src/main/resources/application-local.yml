@@ -1,0 +1,48 @@
+server:
+  port: ${port:8088}
+
+logging:
+  level:
+    root: ${loglevel:INFO}
+    #DEBUG
+
+spring:
+  kafka:
+    listener:
+      concurrency: 1
+    consumer:
+      properties:
+        bootstrap.servers: 34.28.251.45:9092
+        #34.28.251.45:9092
+        #20.192.24.194:39092
+        auto.offset.reset: earliest
+        key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+        value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+        group.id: nil-router
+    producer:
+      properties:
+        bootstrap.servers: 34.28.251.45:9092
+        key.serializer: org.apache.kafka.common.serialization.StringSerializer
+        value.serializer: org.apache.kafka.common.serialization.StringSerializer
+        enable.auto.commit: false
+        missing.topics.fatal: false
+
+  ######################################
+  #########  DB PROPERTIES #############
+  ######################################
+
+  datasource:
+    url: ${datasourceUrl:jdbc:postgresql://34.135.239.235:5432/postgresdb}
+    username: ${dbusername:admin}
+    password: ${password:test123}
+    driver-class-name: ${diverclassname:org.postgresql.Driver}
+
+
+routing:
+  header: testHeader
+  mappings:
+    pacs.008.001.09: pacs008
+    camt.059.001.06: camt59
+    admi: channelA
+
+

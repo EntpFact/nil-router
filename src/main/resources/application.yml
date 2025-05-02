@@ -1,0 +1,27 @@
+
+
+server:
+  port: ${port:8086}
+
+logging:
+  level:
+    root: ${loglevel:INFO}
+    #DEBUG
+
+######################################
+#########  DB PROPERTIES #############
+######################################
+spring:
+  datasource:
+    url: ${datasourceUrl:jdbc:postgresql://34.135.239.235:5432/postgresdb}
+    username: ${dbusername:admin}
+    password: ${password:test123}
+    driver-class-name: ${diverclassname:org.postgresql.Driver}
+
+
+routing:
+  header: ${ROUTING_HEADER:testHeader}
+  mappings:
+    ${ROUTING_KEY1:pacs.008.001.09}: ${ROUTING_CHANNEL1:pacs008}
+    ${ROUTING_KEY2:camt.059.001.06}: ${ROUTING_CHANNEL2:camt59}
+    ${ROUTING_KEY3:admi}: ${ROUTING_CHANNEL3:channelA}

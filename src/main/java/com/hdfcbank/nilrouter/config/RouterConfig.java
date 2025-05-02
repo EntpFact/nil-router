@@ -38,7 +38,12 @@ public class RouterConfig {
     }
 
     @Bean
-    public MessageChannel channelB() {
+    public MessageChannel camt59() {
+        return MessageChannels.direct().getObject();
+    }
+
+    @Bean
+    public MessageChannel pacs008() {
         return MessageChannels.direct().getObject();
     }
 

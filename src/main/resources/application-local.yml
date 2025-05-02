@@ -18,7 +18,7 @@ spring:
         auto.offset.reset: earliest
         key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
         value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
-        group.id: nil-router
+        group.id: nil-router-consumer
     producer:
       properties:
         bootstrap.servers: 34.28.251.45:9092

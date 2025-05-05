@@ -36,7 +36,10 @@ spring:
     username: ${dbusername:admin}
     password: ${password:test123}
     driver-class-name: ${diverclassname:org.postgresql.Driver}
-
+#  jpa:
+#    hibernate:
+#      ddl-auto: update
+#    database-platform: org.hibernate.dialect.PostgreSQLDialect
 
 routing:
   header: testHeader

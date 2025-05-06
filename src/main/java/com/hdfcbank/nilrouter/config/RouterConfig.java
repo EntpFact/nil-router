@@ -1,6 +1,7 @@
 package com.hdfcbank.nilrouter.config;
 
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.integration.annotation.ServiceActivator;
@@ -18,6 +19,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.StringReader;
 
+@Slf4j
 @Configuration
 public class RouterConfig {
 
@@ -58,24 +60,24 @@ public class RouterConfig {
     private String determineHeaderValue(Message<?> message) {
         String msgDefIdr = null;
         try {
-           String payload = message.getPayload().toString();
-           DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-           factory.setNamespaceAware(true);
-           DocumentBuilder builder = factory.newDocumentBuilder();
-           // Parse XML from String
-           Document document = builder.parse(new InputSource(new StringReader(payload)));
+            String payload = message.getPayload().toString();
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            // Parse XML from String
+            Document document = builder.parse(new InputSource(new StringReader(payload)));
 
 
-           NodeList msgDefIdrList = document.getElementsByTagName("MsgDefIdr");
-           if (msgDefIdrList.getLength() > 0) {
-               msgDefIdr = msgDefIdrList.item(0).getTextContent();
-               System.out.println("Message Definition Identifier: " + msgDefIdr);
+            NodeList msgDefIdrList = document.getElementsByTagName("MsgDefIdr");
+            if (msgDefIdrList.getLength() > 0) {
+                msgDefIdr = msgDefIdrList.item(0).getTextContent();
+                log.info("Message Definition Identifier: " + msgDefIdr);
 
-           }
+            }
 
-       } catch (Exception e) {
-           e.printStackTrace();
-       }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         return msgDefIdr;
     }
@@ -90,7 +92,7 @@ public class RouterConfig {
     @Bean
     @ServiceActivator(inputChannel = "channelA")
     public MessageHandler handlerA() {
-        return message -> System.out.println("Handled by channelA: " + message.getPayload());
+        return message -> log.info("Handled by channelA: " + message.getPayload());
     }
 
 

@@ -1,6 +1,7 @@
 package com.hdfcbank.nilrouter.service.pacs008;
 
 
+import com.hdfcbank.nilrouter.utilities.UtilityClass;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.stereotype.Service;
@@ -32,7 +33,7 @@ public class Pacs008XmlProcessor {
    @ServiceActivator(inputChannel = "pacs008")
     public  void parseXml(String xmlString) throws Exception {
 
-       if(isOutward(xmlString))
+       if(UtilityClass.isOutward(xmlString))
        {
            outwardService.auditForOutward(xmlString);
        }
@@ -94,24 +95,6 @@ public class Pacs008XmlProcessor {
         return false;
     }
 
-    private boolean isOutward(String xml) throws Exception
-    {
-        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-        dbFactory.setNamespaceAware(true);
-        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-        Document doc = dBuilder.parse(new InputSource(new StringReader(xml)));
-
-        String fromMmbId = doc.getElementsByTagName("Fr").item(0)
-                .getTextContent().trim().toUpperCase();
-
-        String toMmbId = doc.getElementsByTagName("To").item(0)
-                .getTextContent().trim().toUpperCase();
-        if (fromMmbId.contains("HDFC") && toMmbId.contains("RBI")) {
-            // Outward flow
-            return true;
-        }
-        return false;
-    }
 
 }
 

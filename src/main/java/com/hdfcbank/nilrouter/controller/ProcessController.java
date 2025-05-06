@@ -1,7 +1,6 @@
 package com.hdfcbank.nilrouter.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-
 import com.hdfcbank.nilrouter.exception.NILException;
 import com.hdfcbank.nilrouter.model.Response;
 import lombok.extern.slf4j.Slf4j;
@@ -120,7 +119,6 @@ public class ProcessController {
     }
 
 
-
     @CrossOrigin
     @PostMapping("/testProcess")
     public Mono<ResponseEntity<Response>> testProcess(@RequestBody String request) throws JsonProcessingException {
@@ -131,7 +129,7 @@ public class ProcessController {
             Map<String, String> payloadMap = new HashMap<>();
             try {
                 String xmlMessage = request;
-				log.info("Request data--{}", xmlMessage);
+                //log.info("Request data--{}", xmlMessage);
                 routingChannel.send(MessageBuilder.withPayload(request).build());
 
                 return ResponseEntity.ok(new Response("SUCCESS", "Message Processed."));

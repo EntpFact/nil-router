@@ -45,4 +45,12 @@ routing:
     camt.059.001.06: camt59
     admi: channelA
 
+message:
+  xpath:
+    mappings:
+      pacs.008.001.09: "//*[local-name()='CdtTrfTxInf']"
+      camt.059.001.06: "//*[local-name()='OrgnlNtfctnRef']"
+      # Add more message types and their XPaths as needed
+
+
 

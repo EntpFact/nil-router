@@ -29,17 +29,17 @@ import java.util.Map;
 
 @Slf4j
 @Service
-public class OutwardAuditService {
+public class AuditService {
     private final MessageXPathConfig xPathConfig;
 
-    public OutwardAuditService(MessageXPathConfig xPathConfig) {
+    public AuditService(MessageXPathConfig xPathConfig) {
         this.xPathConfig = xPathConfig;
     }
 
     @Autowired
     NilRepository nilRepository;
 
-    public void auditForOutward(String xmlPayload) {
+    public void auditData(String xmlPayload) {
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         dbFactory.setNamespaceAware(true);
         DocumentBuilder dBuilder = null;
@@ -63,17 +63,27 @@ public class OutwardAuditService {
             if (msgDefIdrNode != null) {
                 msgType = msgDefIdrNode != null ? msgDefIdrNode.getTextContent().trim() : null;  // e.g., pacs008, camt059
             }
-            if (msgId != null) {
-                MsgEventTracker tracker = new MsgEventTracker();
+
+            MsgEventTracker tracker = new MsgEventTracker();
+            if ("camt.052.001.08".equals(msgType) || "camt.054.001.08".equals(msgType)) {
+
+                tracker.setMsgId(msgId);
+                tracker.setSource("SFMS");
+                tracker.setTarget("NIL");
+                tracker.setFlowType("Inward");
+                tracker.setMsgType(msgType);
+                tracker.setOrgnlReq(xmlPayload);
+
+            } else {
                 tracker.setMsgId(msgId);
                 tracker.setSource("NIL");
                 tracker.setTarget("SFMS");
                 tracker.setFlowType("Outward");
                 tracker.setMsgType(msgType);
                 tracker.setOrgnlReq(xmlPayload);
-
-                nilRepository.saveDataInMsgEventTracker(tracker);
             }
+
+            nilRepository.saveDataInMsgEventTracker(tracker);
 
             // Take the mappings from map
             Map<String, String> msgTypeToXPathMap = xPathConfig.getMappings();
@@ -101,12 +111,20 @@ public class OutwardAuditService {
                     transaction.setTxnId(evaluateText(xpath, txNode, ".//*[local-name()='OrgnlItmId']"));
                     transaction.setAmount(new BigDecimal(evaluateText(xpath, txNode, ".//*[local-name()='Amt']")));
                     transaction.setBatchId(evaluateText(xpath, txNode, ".//*[local-name()='AddtlNtfctnInf']"));
+                } else if ("camt.052.001.08".equals(msgType) || "camt.054.001.08".equals(msgType)) {
+
+                    /*transaction.setAmount(new BigDecimal(evaluateText(xpath, txNode, ".//*[local-name()='Amt']")));
+                    Node batchIdNode = (Node) xpath.evaluate("//*[local-name()='GrpHdr']/*[local-name()='AddtlInf']", originalDoc, XPathConstants.NODE);
+                    String batchId = batchIdNode != null ? batchIdNode.getTextContent().trim() : null;
+                    transaction.setBatchId(batchId);*/
                 }
+
 
                 transaction.setMsgType(msgType);
                 transaction.setSource("NIL");
                 transaction.setTarget("SFMS");
                 transaction.setFlowType("Outward");
+                transaction.setReqPayload(xmlPayload);
 
                 listOfTransactions.add(transaction);
             }

@@ -5,6 +5,7 @@ import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.model.Camt59Fields;
 import com.hdfcbank.nilrouter.model.MsgEventTracker;
 import com.hdfcbank.nilrouter.model.TransactionAudit;
+import com.hdfcbank.nilrouter.service.OutwardAuditService;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,8 +45,20 @@ public class Camt59XmlProcessor {
     @Autowired
     UtilityMethods utilityMethods;
 
+    @Autowired
+    OutwardAuditService outwardAuditService;
+
     @ServiceActivator(inputChannel = "camt59")
     public void processXML(String xml) {
+
+        if (utilityMethods.isOutward(xml)) {
+            outwardAuditService.auditForOutward(xml);
+        } else {
+            processCamt59InwardMessage(xml);
+        }
+    }
+
+    private void processCamt59InwardMessage(String xml) {
         List<Camt59Fields> camt59 = new ArrayList<>();
         String bizMsgIdr = null, orgnlItmId = null, orgnlEndToEndId = null;
         try {
@@ -158,7 +171,7 @@ public class Camt59XmlProcessor {
             dao.saveAllTransactionAudits(transactionAudits);
 
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error(e.toString());
         }
     }
 
@@ -253,7 +266,6 @@ public class Camt59XmlProcessor {
         return newDoc;
     }
 
-
     public String documentToXml(Document doc) throws TransformerException {
         StringWriter writer = new StringWriter();
         TransformerFactory transformerFactory = TransformerFactory.newInstance();
@@ -263,7 +275,6 @@ public class Camt59XmlProcessor {
         transformer.transform(new DOMSource(doc), new StreamResult(writer));
         return writer.toString();
     }
-
 
     private static Element createElementNS(Document doc, String localName) {
         final String CAMT_NS = "urn:iso:std:iso:20022:tech:xsd:camt.059.001.06";

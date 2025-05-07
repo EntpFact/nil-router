@@ -1,14 +1,16 @@
-package com.hdfcbank.nilrouter.service.camt59;
+package com.hdfcbank.nilrouter.service.camt;
 
 
 import com.hdfcbank.nilrouter.dao.NilRepository;
+import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
 import com.hdfcbank.nilrouter.model.Camt59Fields;
 import com.hdfcbank.nilrouter.model.MsgEventTracker;
 import com.hdfcbank.nilrouter.model.TransactionAudit;
-import com.hdfcbank.nilrouter.service.OutwardAuditService;
+import com.hdfcbank.nilrouter.service.AuditService;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
@@ -39,6 +41,15 @@ import java.util.regex.Pattern;
 @Service
 public class Camt59XmlProcessor {
 
+    @Value("${topic.sfmstopic}")
+    private String sfmstopic;
+
+    @Value("${topic.fctopic}")
+    private String fctopic;
+
+    @Value("${topic.ephtopic}")
+    private String ephtopic;
+
     @Autowired
     NilRepository dao;
 
@@ -46,13 +57,19 @@ public class Camt59XmlProcessor {
     UtilityMethods utilityMethods;
 
     @Autowired
-    OutwardAuditService outwardAuditService;
+    AuditService auditService;
+
+    @Autowired
+    KafkaUtils kafkaUtils;
 
     @ServiceActivator(inputChannel = "camt59")
     public void processXML(String xml) {
 
         if (utilityMethods.isOutward(xml)) {
-            outwardAuditService.auditForOutward(xml);
+            auditService.auditData(xml);
+            //Send to SFMS
+            kafkaUtils.publishToResponseTopic(xml, sfmstopic);
+
         } else {
             processCamt59InwardMessage(xml);
         }
@@ -104,7 +121,7 @@ public class Camt59XmlProcessor {
                 Document outputDoc = filterOrgnlItmAndSts(document, 0, 4);
 
                 String outputDocString = documentToXml(document);
-                log.info("FC  : {}", outputDocString);
+                //log.info("FC  : {}", outputDocString);
 
                 MsgEventTracker tracker = new MsgEventTracker();
                 tracker.setMsgId(utilityMethods.getBizMsgIdr(document));
@@ -114,13 +131,16 @@ public class Camt59XmlProcessor {
                 tracker.setMsgType(utilityMethods.getMsgDefIdr(document));
                 tracker.setOrgnlReq(xml);
 
+                //Send to FC TOPIC
+                kafkaUtils.publishToResponseTopic(xml,fctopic);
+                // Save to DB
                 dao.saveDataInMsgEventTracker(tracker);
 
 
             } else if (!has0to4 && has5to9) {
                 Document outputDoc = filterOrgnlItmAndSts(document, 5, 9);
                 String outputDocString = documentToXml(outputDoc);
-                log.info("EPH : {}", outputDocString);
+                //log.info("EPH : {}", outputDocString);
 
                 MsgEventTracker tracker = new MsgEventTracker();
                 tracker.setMsgId(utilityMethods.getBizMsgIdr(document));
@@ -130,15 +150,18 @@ public class Camt59XmlProcessor {
                 tracker.setMsgType(utilityMethods.getMsgDefIdr(document));
                 tracker.setOrgnlReq(xml);
 
+                //Send to EPH TOPIC
+                kafkaUtils.publishToResponseTopic(xml,ephtopic);
+                // Save to DB
                 dao.saveDataInMsgEventTracker(tracker);
 
             } else if (has0to4 && has5to9) {
                 Document outputDoc1 = filterOrgnlItmAndSts(document, 0, 4);
                 Document outputDoc2 = filterOrgnlItmAndSts(document, 5, 9);
                 String outputDocString = documentToXml(outputDoc1);
-                log.info("FC : {}", outputDocString);
+                //log.info("FC : {}", outputDocString);
                 String outputDocString1 = documentToXml(outputDoc2);
-                log.info("EPH : {}", outputDocString1);
+                //log.info("EPH : {}", outputDocString1);
 
                 MsgEventTracker fcTracker = new MsgEventTracker();
                 fcTracker.setMsgId(utilityMethods.getBizMsgIdr(document));
@@ -162,6 +185,11 @@ public class Camt59XmlProcessor {
                 ephTracker.setOrgnlReqCount(camt59.size());
                 ephTracker.setIntermediateCount(ephCount);
 
+
+                //Send to FC & EPH TOPIC
+                kafkaUtils.publishToResponseTopic(outputDocString,fctopic);
+                kafkaUtils.publishToResponseTopic(outputDocString1,ephtopic);
+                // Save to DB
                 dao.saveDataInMsgEventTracker(fcTracker);
                 dao.saveDataInMsgEventTracker(ephTracker);
             }

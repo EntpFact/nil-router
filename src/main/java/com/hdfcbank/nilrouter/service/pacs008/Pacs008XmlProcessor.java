@@ -1,7 +1,7 @@
 package com.hdfcbank.nilrouter.service.pacs008;
 
 
-import com.hdfcbank.nilrouter.utilities.UtilityClass;
+import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.stereotype.Service;
@@ -30,21 +30,23 @@ public class Pacs008XmlProcessor {
     @Autowired
     private OutwardService outwardService;
 
-   @ServiceActivator(inputChannel = "pacs008")
-    public  void parseXml(String xmlString) throws Exception {
+    @Autowired
+    private UtilityMethods utilityMethods;
 
-       if(UtilityClass.isOutward(xmlString))
-       {
-           outwardService.auditForOutward(xmlString);
-       }
-       else {
-           if (containsReturnTags(xmlString)) {
-               lateReturn.splitXmlByTransactions(xmlString);
-           } else {
-               freshInward.auditForFreshInward(xmlString);
-           }
-       }
+    @ServiceActivator(inputChannel = "pacs008")
+    public void parseXml(String xmlString) throws Exception {
+
+        if (utilityMethods.isOutward(xmlString)) {
+            outwardService.auditForOutward(xmlString);
+        } else {
+            if (containsReturnTags(xmlString)) {
+                lateReturn.splitXmlByTransactions(xmlString);
+            } else {
+                freshInward.auditForFreshInward(xmlString);
+            }
+        }
     }
+
     public boolean containsReturnTags(String xmlPayload) throws Exception {
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         dbFactory.setNamespaceAware(true);

@@ -1,9 +1,9 @@
 package com.hdfcbank.nilrouter.service.pacs008;
 
+import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
 import com.hdfcbank.nilrouter.model.MsgEventTracker;
 import com.hdfcbank.nilrouter.model.TransactionAudit;
-import com.hdfcbank.nilrouter.repository.TransformerConfigRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
@@ -31,8 +31,8 @@ import java.util.List;
 @Service
 public class LateReturn {
 
-//    @Autowired
-//    private TransformerConfigRepository transformerConfigRepository;
+    @Autowired
+    private NilRepository nilRepository;
 
     @Autowired
     private KafkaUtils kafkaUtils;
@@ -73,7 +73,6 @@ public class LateReturn {
             transaction.setMsgType("pacs008");
 
 
-
             if (id == null) {
                 freshTxns.add(tx); //  No valid txnId → goes to freshTransactions
                 transaction.setTarget("Fresh");
@@ -106,29 +105,23 @@ public class LateReturn {
             fcXml = buildNewXml(originalDoc, dBuilder, Fc);
         } else if (hasFC && !hasEPH && hasFresh) {
             fcXml = buildNewXml(originalDoc, dBuilder, combine(Fc, freshTxns));
-            listOfTransactions.stream()
-                    .filter(t -> "Fresh".equalsIgnoreCase(t.getTarget()))
-                    .forEach(t -> t.setTarget("FC"));
+            listOfTransactions.stream().filter(t -> "Fresh".equalsIgnoreCase(t.getTarget())).forEach(t -> t.setTarget("FC"));
         } else if (!hasFC && hasEPH && !hasFresh) {
             ephXml = buildNewXml(originalDoc, dBuilder, EPH);
         } else if (!hasFC && hasEPH && hasFresh) {
             ephXml = buildNewXml(originalDoc, dBuilder, combine(EPH, freshTxns));
-            listOfTransactions.stream()
-                    .filter(t -> "Fresh".equalsIgnoreCase(t.getTarget()))
-                    .forEach(t -> t.setTarget("EPH"));
+            listOfTransactions.stream().filter(t -> "Fresh".equalsIgnoreCase(t.getTarget())).forEach(t -> t.setTarget("EPH"));
         } else if (hasFC) {
             fcXml = buildNewXml(originalDoc, dBuilder, Fc);
             ephXml = buildNewXml(originalDoc, dBuilder, combine(EPH, freshTxns));
-            listOfTransactions.stream()
-                    .filter(t -> "Fresh".equalsIgnoreCase(t.getTarget()))
-                    .forEach(t -> t.setTarget("EPH"));
+            listOfTransactions.stream().filter(t -> "Fresh".equalsIgnoreCase(t.getTarget())).forEach(t -> t.setTarget("EPH"));
         }
 
         if (fcXml != null) {
-            kafkaUtils.publishToResponseTopic(fcXml,"FCTOPIC");
+            kafkaUtils.publishToResponseTopic(fcXml, "FCTOPIC");
         }
         if (ephXml != null) {
-            kafkaUtils.publishToResponseTopic(ephXml,"EPHTOPIC");
+            kafkaUtils.publishToResponseTopic(ephXml, "EPHTOPIC");
         }
 
 
@@ -139,12 +132,12 @@ public class LateReturn {
             tracker.setTarget("FC");
             tracker.setFlowType("inward");
             tracker.setMsgType("pacs008");
-            tracker.setOriginalReq(xmlPayload);
+            tracker.setOrgnlReq(xmlPayload);
 
-//            transformerConfigRepository.saveDataInMsgEventTracker(tracker);
+           nilRepository.saveDataInMsgEventTracker(tracker);
         }
 
-//        transformerConfigRepository.saveAllTransactionAudits(listOfTransactions);
+       nilRepository.saveAllTransactionAudits(listOfTransactions);
 
     }
 

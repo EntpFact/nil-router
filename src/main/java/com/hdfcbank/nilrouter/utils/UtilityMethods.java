@@ -19,6 +19,7 @@ public class UtilityMethods {
         return msgId;
     }
 
+
     public String getMsgDefIdr(Document originalDoc) throws XPathExpressionException {
         XPath xpath = XPathFactory.newInstance().newXPath();
         Node msgIdNode = (Node) xpath.evaluate("//*[local-name()='AppHdr']/*[local-name()='MsgDefIdr']", originalDoc, XPathConstants.NODE);

@@ -41,8 +41,9 @@ spring:
 routing:
   header: testHeader
   mappings:
-    pacs.008.001.09: pacs008
-    camt.059.001.06: camt59
+    #pacs.008.001.09: pacs008
+    pacs.004.001.10 : pacs004
+    #camt.059.001.06: camt59
     admi: channelA
 
 

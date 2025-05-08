@@ -22,6 +22,7 @@ spring:
 routing:
   header: ${ROUTING_HEADER:testHeader}
   mappings:
-    pacs.008.001.09: ${ROUTING_CHANNEL1:pacs008}
-    camt.059.001.06: ${ROUTING_CHANNEL2:camt59}
+    #pacs.008.001.09: ${ROUTING_CHANNEL1:pacs008}
+    pacs.004.001.10: ${ROUTING_CHANNEL3:pacs004}
+    #camt.059.001.06: ${ROUTING_CHANNEL2:camt59}
     admi: ${ROUTING_CHANNEL3:channelA}

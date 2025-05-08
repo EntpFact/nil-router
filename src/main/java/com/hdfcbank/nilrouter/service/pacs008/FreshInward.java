@@ -1,8 +1,8 @@
 package com.hdfcbank.nilrouter.service.pacs008;
 
+import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.model.MsgEventTracker;
 import com.hdfcbank.nilrouter.model.TransactionAudit;
-import com.hdfcbank.nilrouter.repository.TransformerConfigRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
@@ -23,8 +23,8 @@ import java.util.List;
 @Service
 public class FreshInward {
 
-//    @Autowired
-//    private TransformerConfigRepository transformerConfigRepository;
+    @Autowired
+    private NilRepository nilRepository;
 
     public void auditForFreshInward(String xmlPayload) throws Exception {
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
@@ -43,9 +43,9 @@ public class FreshInward {
             tracker.setTarget("FC");
             tracker.setFlowType("inward");
             tracker.setMsgType("pacs008");
-            tracker.setOriginalReq(xmlPayload);
+            tracker.setOrgnlReq(xmlPayload);
 
-//            transformerConfigRepository.saveDataInMsgEventTracker(tracker);
+           nilRepository.saveDataInMsgEventTracker(tracker);
         }
 
         List<TransactionAudit> listOfTransactions = new ArrayList<>();
@@ -70,7 +70,7 @@ public class FreshInward {
 
         }
 
-//        transformerConfigRepository.saveAllTransactionAudits(listOfTransactions);
+       nilRepository.saveAllTransactionAudits(listOfTransactions);
 
     }
 

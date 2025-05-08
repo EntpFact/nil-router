@@ -102,17 +102,17 @@ public class Camt59XmlProcessor {
                 orgnlItmId = xpath.evaluate("./*[local-name()='OrgnlItmId']", orgnlItmAndSts);
                 orgnlEndToEndId = xpath.evaluate("./*[local-name()='OrgnlEndToEndId']", orgnlItmAndSts);
 
-                int digit = extractEndToEndIdDigit(orgnlEndToEndId);
+                int digit = extractOrgnlItmIdDigit(orgnlItmId);
 
 
                 if (digit >= 0 && digit <= 4) {
                     has0to4 = true;
                     fcCount++;
-                    camt59.add(new Camt59Fields(bizMsgIdr, orgnlItmId, orgnlEndToEndId, "FC"));
+                    camt59.add(new Camt59Fields(bizMsgIdr, orgnlEndToEndId, orgnlItmId, "FC"));
                 } else if (digit >= 5 && digit <= 9) {
                     has5to9 = true;
                     ephCount++;
-                    camt59.add(new Camt59Fields(bizMsgIdr, orgnlItmId, orgnlEndToEndId, "EPH"));
+                    camt59.add(new Camt59Fields(bizMsgIdr, orgnlEndToEndId, orgnlItmId, "EPH"));
                 }
             }
 
@@ -268,7 +268,7 @@ public class Camt59XmlProcessor {
                     Element orgnlItmAndSts = (Element) itmAndStsList.item(j);
                     String endToEndId = xpath.evaluate("./*[local-name()='OrgnlEndToEndId']", orgnlItmAndSts);
 
-                    int digit = extractEndToEndIdDigit(endToEndId);
+                    int digit = extractOrgnlItmIdDigit(endToEndId);
                     if (digit >= minDigit && digit <= maxDigit) {
                         Element newOrgnlNtfctnRef = createElementNS(newDoc, "OrgnlNtfctnRef");
 
@@ -309,7 +309,7 @@ public class Camt59XmlProcessor {
         return doc.createElementNS(CAMT_NS, localName);
     }
 
-    private static int extractEndToEndIdDigit(String endToEndId) {
+    private static int extractOrgnlItmIdDigit(String orgnlItmId) {
       /*  Pattern pattern = Pattern.compile("/XUTR/HDFCH(\\d{9})");
         Matcher matcher = pattern.matcher(endToEndId);
 
@@ -318,7 +318,7 @@ public class Camt59XmlProcessor {
         }*/
 
         Pattern pattern = Pattern.compile("^.{14}(.)"); // 14 characters, then capture the 15th
-        Matcher matcher = pattern.matcher(endToEndId);
+        Matcher matcher = pattern.matcher(orgnlItmId);
 
         if (matcher.find()) {
             return Character.getNumericValue(matcher.group(1).charAt(0));

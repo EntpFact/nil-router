@@ -101,7 +101,7 @@ public class AuditService {
                 TransactionAudit transaction = new TransactionAudit();
                 transaction.setMsgId(msgId);
 
-                if ("pacs008".equals(msgType)) {
+                if ("pacs.008.001.09".equals(msgType)) {
                     transaction.setEndToEndId(evaluateText(xpath, txNode, ".//*[local-name()='EndToEndId']"));
                     transaction.setTxnId(evaluateText(xpath, txNode, ".//*[local-name()='TxId']"));
                     transaction.setAmount(new BigDecimal(evaluateText(xpath, txNode, ".//*[local-name()='IntrBkSttlmAmt']")));

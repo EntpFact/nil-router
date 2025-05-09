@@ -1,8 +1,11 @@
 package com.hdfcbank.nilrouter.service.pacs008;
 
 
+import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
+import com.hdfcbank.nilrouter.service.AuditService;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
@@ -28,7 +31,13 @@ public class Pacs008XmlProcessor {
     private FreshInward freshInward;
 
     @Autowired
-    private OutwardService outwardService;
+    AuditService auditService;
+
+    @Autowired
+    private KafkaUtils kafkaUtils;
+
+    @Value("${topic.sfmstopic}")
+    private String sfmstopic;
 
     @Autowired
     private UtilityMethods utilityMethods;
@@ -37,7 +46,8 @@ public class Pacs008XmlProcessor {
     public void parseXml(String xmlString) throws Exception {
 
         if (utilityMethods.isOutward(xmlString)) {
-            outwardService.auditForOutward(xmlString);
+            auditService.auditData(xmlString);
+            kafkaUtils.publishToResponseTopic(xmlString, sfmstopic);
         } else {
             if (containsReturnTags(xmlString)) {
                 lateReturn.splitXmlByTransactions(xmlString);

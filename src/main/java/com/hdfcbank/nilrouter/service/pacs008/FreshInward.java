@@ -1,9 +1,11 @@
 package com.hdfcbank.nilrouter.service.pacs008;
 
 import com.hdfcbank.nilrouter.dao.NilRepository;
+import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
 import com.hdfcbank.nilrouter.model.MsgEventTracker;
 import com.hdfcbank.nilrouter.model.TransactionAudit;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -26,6 +28,15 @@ public class FreshInward {
     @Autowired
     private NilRepository nilRepository;
 
+    @Autowired
+    private KafkaUtils kafkaUtils;
+
+    @Value("${topic.fctopic}")
+    private String fctopic;
+
+    @Value("${topic.ephtopic}")
+    private String ephtopic;
+
     public void auditForFreshInward(String xmlPayload) throws Exception {
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         dbFactory.setNamespaceAware(true);
@@ -45,7 +56,7 @@ public class FreshInward {
             tracker.setMsgType("pacs008");
             tracker.setOrgnlReq(xmlPayload);
 
-           nilRepository.saveDataInMsgEventTracker(tracker);
+            nilRepository.saveDataInMsgEventTracker(tracker);
         }
 
         List<TransactionAudit> listOfTransactions = new ArrayList<>();
@@ -54,7 +65,7 @@ public class FreshInward {
         for (int i = 0; i < txNodes.getLength(); i++) {
             Node txNode = txNodes.item(i);
 
-            TransactionAudit transaction=new TransactionAudit();
+            TransactionAudit transaction = new TransactionAudit();
             transaction.setMsgId(msgId);
             transaction.setEndToEndId(evaluateText(xpath, txNode, ".//*[local-name()='EndToEndId']"));
             transaction.setTxnId(evaluateText(xpath, txNode, ".//*[local-name()='TxId']"));
@@ -70,7 +81,11 @@ public class FreshInward {
 
         }
 
-       nilRepository.saveAllTransactionAudits(listOfTransactions);
+        nilRepository.saveAllTransactionAudits(listOfTransactions);
+
+        // need to add modding logic to send msgs to fc and eph topic
+        kafkaUtils.publishToResponseTopic(xmlPayload, fctopic);
+
 
     }
 

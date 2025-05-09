@@ -5,6 +5,7 @@ import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
 import com.hdfcbank.nilrouter.model.MsgEventTracker;
 import com.hdfcbank.nilrouter.model.TransactionAudit;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -37,8 +38,13 @@ public class LateReturn {
     @Autowired
     private KafkaUtils kafkaUtils;
 
+    @Value("${topic.fctopic}")
+    private String fctopic;
+
+    @Value("${topic.ephtopic}")
+    private String ephtopic;
+
     public void splitXmlByTransactions(String xmlPayload) throws Exception {
-        List<String> resultXmls = new ArrayList<>();
 
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         dbFactory.setNamespaceAware(true);
@@ -118,10 +124,10 @@ public class LateReturn {
         }
 
         if (fcXml != null) {
-            kafkaUtils.publishToResponseTopic(fcXml, "FCTOPIC");
+            kafkaUtils.publishToResponseTopic(fcXml, fctopic);
         }
         if (ephXml != null) {
-            kafkaUtils.publishToResponseTopic(ephXml, "EPHTOPIC");
+            kafkaUtils.publishToResponseTopic(ephXml, ephtopic);
         }
 
 
@@ -134,10 +140,10 @@ public class LateReturn {
             tracker.setMsgType("pacs008");
             tracker.setOrgnlReq(xmlPayload);
 
-           nilRepository.saveDataInMsgEventTracker(tracker);
+            nilRepository.saveDataInMsgEventTracker(tracker);
         }
 
-       nilRepository.saveAllTransactionAudits(listOfTransactions);
+        nilRepository.saveAllTransactionAudits(listOfTransactions);
 
     }
 

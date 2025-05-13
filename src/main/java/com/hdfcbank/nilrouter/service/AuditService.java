@@ -68,8 +68,8 @@ public class AuditService {
             if ("camt.052.001.08".equals(msgType) || "camt.054.001.08".equals(msgType)) {
 
                 tracker.setMsgId(msgId);
-                tracker.setSource("SFMS");
-                tracker.setTarget("NIL");
+                tracker.setSource("NIL");
+                tracker.setTarget("FC & EPH");
                 tracker.setFlowType("Inward");
                 tracker.setMsgType(msgType);
                 tracker.setOrgnlReq(xmlPayload);
@@ -111,14 +111,7 @@ public class AuditService {
                     transaction.setTxnId(evaluateText(xpath, txNode, ".//*[local-name()='OrgnlItmId']"));
                     transaction.setAmount(new BigDecimal(evaluateText(xpath, txNode, ".//*[local-name()='Amt']")));
                     transaction.setBatchId(evaluateText(xpath, txNode, ".//*[local-name()='AddtlNtfctnInf']"));
-                } else if ("camt.052.001.08".equals(msgType) || "camt.054.001.08".equals(msgType)) {
-
-                    /*transaction.setAmount(new BigDecimal(evaluateText(xpath, txNode, ".//*[local-name()='Amt']")));
-                    Node batchIdNode = (Node) xpath.evaluate("//*[local-name()='GrpHdr']/*[local-name()='AddtlInf']", originalDoc, XPathConstants.NODE);
-                    String batchId = batchIdNode != null ? batchIdNode.getTextContent().trim() : null;
-                    transaction.setBatchId(batchId);*/
                 }
-
 
                 transaction.setMsgType(msgType);
                 transaction.setSource("NIL");

@@ -206,7 +206,7 @@ public class Camt59XmlProcessor {
     public List<TransactionAudit> extractCamt59Transactions(Document originalDoc, String xml, List<Camt59Fields> camt59Fields) throws XPathExpressionException {
         List<TransactionAudit> listOfTransactions = new ArrayList<>();
 
-        String msgId = utilityMethods.getMsgDefIdr(originalDoc);
+        String msgId = utilityMethods.getBizMsgIdr(originalDoc);
 
         for (Camt59Fields camt59 : camt59Fields) {
 

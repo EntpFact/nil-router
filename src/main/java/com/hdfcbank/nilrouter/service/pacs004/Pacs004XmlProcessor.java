@@ -1,12 +1,14 @@
 package com.hdfcbank.nilrouter.service.pacs004;
 
 import com.hdfcbank.nilrouter.dao.NilRepository;
+import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
 import com.hdfcbank.nilrouter.model.MsgEventTracker;
 import com.hdfcbank.nilrouter.model.Pacs004Fields;
 import com.hdfcbank.nilrouter.model.TransactionAudit;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
@@ -45,6 +47,16 @@ public class Pacs004XmlProcessor {
 
     @Autowired
     UtilityMethods utilityMethods;
+    @Autowired
+    KafkaUtils kafkautils;
+
+    @Value("${topic.fctopic}")
+    String fcTopic;
+
+
+    @Value("${topic.ephtopic}")
+    String ephTopic;
+
 
     @ServiceActivator(inputChannel = "pacs004")
     public void processXML(String xml) {
@@ -64,37 +76,47 @@ public class Pacs004XmlProcessor {
             bizMsgIdr = xpath.evaluate("/*[local-name()='RequestPayload']/*[local-name()='AppHdr']/*[local-name()='BizMsgIdr']", document);
 
             boolean has0to4 = false, has5to9 = false;
-            int ephCount = 0, fcCount = 0;
+            Integer ephCount = 0;
+            Integer fcCount = 0;
+
 
             NodeList orgnlItmAndStsList = (NodeList) xpath.evaluate("/*[local-name()='RequestPayload']/*[local-name()='Document']//*[local-name()='TxInf']", document, XPathConstants.NODESET);
             double consolidateAmountFC = 0;
             double consolidateAmountEPH =0;
             for (int i = 0; i < orgnlItmAndStsList.getLength(); i++) {
                 Element orgnlItmAndSts = (Element) orgnlItmAndStsList.item(i);
-
-                orgnlItmId = xpath.evaluate("./*[local-name()='RtrId']", orgnlItmAndSts);
+                String batchIdValue = "";
+                orgnlItmId = xpath.evaluate("./*[local-name()='OrgnlTxId']", orgnlItmAndSts);
                 orgnlEndToEndId = xpath.evaluate("./*[local-name()='OrgnlEndToEndId']", orgnlItmAndSts);
                 String amount =xpath.evaluate("./*[local-name()='RtrdIntrBkSttlmAmt']", orgnlItmAndSts);
 
-                int digit = extractEndToEndIdDigit(orgnlEndToEndId);
+                NodeList batchIdList=(NodeList)xpath.evaluate(".//*[local-name()='OrgnlTxRef']/*[local-name()='UndrlygCstmrCdtTrf']//*[local-name()='RmtInf']",  orgnlItmAndSts,XPathConstants.NODE);
+                for(int j=0;j<batchIdList.getLength();j++){
+                    String batchId=(batchIdList.item(j)).getTextContent();
+                    if(batchId.contains("BatchId")){
+                         batchIdValue=batchId.substring(batchId.indexOf(":")+1);
+                    }
+
+                }
+                int digit = extractEndToEndIdDigit(orgnlItmId);
 
 
                 if (digit >= 0 && digit <= 4) {
                     has0to4 = true;
                     consolidateAmountFC=consolidateAmountFC+Double.parseDouble(amount);
                     fcCount++;
-                    pacs004.add(new Pacs004Fields(bizMsgIdr, orgnlEndToEndId,orgnlItmId, amount, "FC"));
+                    pacs004.add(new Pacs004Fields(bizMsgIdr, orgnlEndToEndId,orgnlItmId, amount, "FC",batchIdValue));
                 } else if (digit >= 5 && digit <= 9) {
                     has5to9 = true;
                     ephCount++;
                     consolidateAmountEPH +=Double.parseDouble(amount);
-                    pacs004.add(new Pacs004Fields(bizMsgIdr,orgnlEndToEndId, orgnlItmId,amount,  "EPH"));
+                    pacs004.add(new Pacs004Fields(bizMsgIdr,orgnlEndToEndId, orgnlItmId,amount,  "EPH",batchIdValue));
                 }
             }
 
 
             if (has0to4 && !has5to9) {
-                Document outputDoc = filterOrgnlItmAndSts(document, 0, 4);
+                Document outputDoc = filterOrgnlItmAndSts(document, 0, 4,fcCount,consolidateAmountFC);
 
                 String outputDocString = documentToXml(document);
                 log.info("FC  : {}", outputDocString);
@@ -104,15 +126,18 @@ public class Pacs004XmlProcessor {
                 tracker.setSource("NIL");
                 tracker.setTarget("FC");
                 tracker.setFlowType("Inward");
+                tracker.setIntermediateReq("XML");
+                tracker.setIntermediateCount(fcCount);
+                tracker.setOrgnlReqCount(orgnlItmAndStsList.getLength());
                 tracker.setConsolidateAmt(BigDecimal.valueOf(consolidateAmountFC));
                 tracker.setMsgType(utilityMethods.getMsgDefIdr(document));
                 tracker.setOrgnlReq(xml);
 
                 dao.saveDataInMsgEventTracker(tracker);
-
+                kafkautils.publishToResponseTopic(xml,fcTopic);
 
             } else if (!has0to4 && has5to9) {
-                Document outputDoc = filterOrgnlItmAndSts(document, 5, 9);
+                Document outputDoc = filterOrgnlItmAndSts(document, 5, 9,ephCount,consolidateAmountEPH);
                 String outputDocString = documentToXml(outputDoc);
                 log.info("EPH : {}", outputDocString);
 
@@ -121,15 +146,19 @@ public class Pacs004XmlProcessor {
                 tracker.setSource("NIL");
                 tracker.setTarget("EPH");
                 tracker.setFlowType("Inward");
+
+                tracker.setIntermediateReq("XML");
+                tracker.setIntermediateCount(ephCount);
+                tracker.setOrgnlReqCount(orgnlItmAndStsList.getLength());
                 tracker.setConsolidateAmt(BigDecimal.valueOf(consolidateAmountEPH));
                 tracker.setMsgType(utilityMethods.getMsgDefIdr(document));
                 tracker.setOrgnlReq(xml);
 
                 dao.saveDataInMsgEventTracker(tracker);
-
+                kafkautils.publishToResponseTopic(xml,ephTopic);
             } else if (has0to4 && has5to9) {
-                Document outputDoc1 = filterOrgnlItmAndSts(document, 0, 4);
-                Document outputDoc2 = filterOrgnlItmAndSts(document, 5, 9);
+                Document outputDoc1 = filterOrgnlItmAndSts(document, 0, 4,fcCount,consolidateAmountFC);
+                Document outputDoc2 = filterOrgnlItmAndSts(document, 5, 9,ephCount, consolidateAmountEPH);
                 String outputDocString = documentToXml(outputDoc1);
                 log.info("FC : {}", outputDocString);
                 String outputDocString1 = documentToXml(outputDoc2);
@@ -146,6 +175,7 @@ public class Pacs004XmlProcessor {
                 fcTracker.setIntermediateReq(outputDocString);
                 fcTracker.setOrgnlReqCount(pacs004.size());
                 fcTracker.setIntermediateCount(fcCount);
+//                kafkautils.publishToResponseTopic(outputDocString,fcTopic);
 
                 MsgEventTracker ephTracker = new MsgEventTracker();
                 ephTracker.setMsgId(utilityMethods.getBizMsgIdr(document));
@@ -161,6 +191,7 @@ public class Pacs004XmlProcessor {
 
                 dao.saveDataInMsgEventTracker(fcTracker);
                 dao.saveDataInMsgEventTracker(ephTracker);
+//                kafkautils.publishToResponseTopic(outputDocString1,ephTopic);
             }
 
             List<TransactionAudit> transactionAudits = extractPacs004Transactions(document, xml,pacs004);
@@ -185,6 +216,7 @@ public class Pacs004XmlProcessor {
             transaction.setTxnId(pacs004.getTxId());
             transaction.setMsgType("pacs.004.001.10");
             transaction.setSource("NIL");
+            transaction.setBatchId(pacs004.getBatchId());
             double d=Double.parseDouble(pacs004.getAmount());
             transaction.setAmount(BigDecimal.valueOf(d));
             transaction.setTarget(pacs004.getSwtch());
@@ -197,9 +229,11 @@ public class Pacs004XmlProcessor {
     }
 
 
-    private static Document filterOrgnlItmAndSts(Document document, int minDigit, int maxDigit) throws Exception {
+    private static Document filterOrgnlItmAndSts(Document document, int minDigit, int maxDigit,int count,double total ) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         DocumentBuilder builder = factory.newDocumentBuilder();
+
+
         Document newDoc = builder.newDocument();
 
         Element root = (Element) newDoc.importNode(document.getDocumentElement(), false);
@@ -209,6 +243,7 @@ public class Pacs004XmlProcessor {
 
         NodeList appHdrList = (NodeList) xpath.evaluate("/*[local-name()='RequestPayload']/*[local-name()='AppHdr']", document, XPathConstants.NODESET);
         if (appHdrList.getLength() > 0) {
+
             root.appendChild(newDoc.importNode(appHdrList.item(0), true));
         }
 
@@ -218,44 +253,62 @@ public class Pacs004XmlProcessor {
             Element newDocument = (Element) newDoc.importNode(originalDocument, false);
             root.appendChild(newDocument);
 
-            Element ntfctnToRcvStsRpt = createElementNS(newDoc, "NtfctnToRcvStsRpt");
-            newDocument.appendChild(ntfctnToRcvStsRpt);
+            Element PmtRtr = createElementNS(newDoc, "PmtRtr");
+            newDocument.appendChild(PmtRtr);
 
             NodeList grpHdrList = (NodeList) xpath.evaluate(".//*[local-name()='GrpHdr']", originalDocument, XPathConstants.NODESET);
             if (grpHdrList.getLength() > 0) {
-                ntfctnToRcvStsRpt.appendChild(newDoc.importNode(grpHdrList.item(0), true));
+                NodeList nbOfTxsList=((Element)grpHdrList.item(0)).getElementsByTagNameNS("*","NbOfTxs");
+                NodeList tlRtrdIntrBkSttlmAmtList=((Element)grpHdrList.item(0)).getElementsByTagNameNS("*","TtlRtrdIntrBkSttlmAmt");
+
+                if (nbOfTxsList.getLength() > 0 ) {
+                    Element nbOfTxs = (Element) nbOfTxsList.item(0);
+                    nbOfTxs.setTextContent(String.valueOf(count));
+
+                }
+                if (tlRtrdIntrBkSttlmAmtList.getLength() > 0 ) {
+                    Element tlRtrdIntrBkSttlmAmt = (Element) tlRtrdIntrBkSttlmAmtList.item(0);
+                    tlRtrdIntrBkSttlmAmt.setTextContent(String.valueOf(total));
+                }
+
+//                Element tlRtrdIntrBkSttlmAmt = createElementNS(newDoc,"TtlRtrdIntrBkSttlmAmt");
+
+//                grpHdrList.item(0).appendChild(nbOfTxs);
+                PmtRtr.appendChild(newDoc.importNode(grpHdrList.item(0), true));
+
             }
 
-            NodeList orgnlNtfctnRefs = (NodeList) xpath.evaluate(".//*[local-name()='OrgnlNtfctnRef']", originalDocument, XPathConstants.NODESET);
-            Element newOrgnlNtfctnAndSts = createElementNS(newDoc, "OrgnlNtfctnAndSts");
+            NodeList txInf = (NodeList) xpath.evaluate(".//*[local-name()='TxInf']", originalDocument, XPathConstants.NODESET);
+            Element newTxInf = createElementNS(newDoc, "TxInf");
+
             boolean hasValidEntries = false;
 
-            for (int i = 0; i < orgnlNtfctnRefs.getLength(); i++) {
-                Element orgnlNtfctnRef = (Element) orgnlNtfctnRefs.item(i);
-                NodeList itmAndStsList = (NodeList) xpath.evaluate(".//*[local-name()='OrgnlItmAndSts']", orgnlNtfctnRef, XPathConstants.NODESET);
+            for (int i = 0; i < txInf.getLength(); i++) {
+                Element orgnlNtfctnRef = (Element) txInf.item(i);
+//                NodeList itmAndStsList = (NodeList) xpath.evaluate(".//*[local-name()='OrgnlItmAndSts']", orgnlNtfctnRef, XPathConstants.NODESET);
 
-                for (int j = 0; j < itmAndStsList.getLength(); j++) {
-                    Element orgnlItmAndSts = (Element) itmAndStsList.item(j);
-                    String endToEndId = xpath.evaluate("./*[local-name()='OrgnlEndToEndId']", orgnlItmAndSts);
+//                for (int j = 0; j < itmAndStsList.getLength(); j++) {
+//                    Element orgnlItmAndSts = (Element) itmAndStsList.item(j);
+                    String orgnlTxId = xpath.evaluate("./*[local-name()='OrgnlTxId']", orgnlNtfctnRef);
 
-                    int digit = extractEndToEndIdDigit(endToEndId);
+                    int digit = extractEndToEndIdDigit(orgnlTxId);
                     if (digit >= minDigit && digit <= maxDigit) {
-                        Element newOrgnlNtfctnRef = createElementNS(newDoc, "OrgnlNtfctnRef");
+                        Element newTxInfSts = createElementNS(newDoc, "TxInf");
 
                         NodeList dbtrAgtList = (NodeList) xpath.evaluate(".//*[local-name()='DbtrAgt']", orgnlNtfctnRef, XPathConstants.NODESET);
                         if (dbtrAgtList.getLength() > 0) {
-                            newOrgnlNtfctnRef.appendChild(newDoc.importNode(dbtrAgtList.item(0), true));
+                            newTxInfSts.appendChild(newDoc.importNode(dbtrAgtList.item(0), true));
                         }
 
-                        newOrgnlNtfctnRef.appendChild(newDoc.importNode(orgnlItmAndSts, true));
-                        newOrgnlNtfctnAndSts.appendChild(newOrgnlNtfctnRef);
+                        newTxInfSts.appendChild(newDoc.importNode(orgnlNtfctnRef, true));
+                        newTxInf.appendChild(newTxInfSts);
                         hasValidEntries = true;
                     }
-                }
+//                }
             }
 
             if (hasValidEntries) {
-                ntfctnToRcvStsRpt.appendChild(newOrgnlNtfctnAndSts);
+                PmtRtr.appendChild(newTxInf);
             }
         }
 

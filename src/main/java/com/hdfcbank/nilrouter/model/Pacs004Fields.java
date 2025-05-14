@@ -16,6 +16,7 @@ import lombok.ToString;
         String txId;
         String amount;
         String swtch;
+        String batchId;
     }
 
 

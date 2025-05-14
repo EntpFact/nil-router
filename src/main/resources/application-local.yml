@@ -46,4 +46,7 @@ routing:
     #camt.059.001.06: camt59
     admi: channelA
 
-
+topic:
+  fctopic: FCTOPIC
+  ephtopic: EPHTOPIC
+  sfmstopic: SFMSTOPIC

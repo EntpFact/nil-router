@@ -26,7 +26,8 @@ routing:
     camt.059.001.06: ${ROUTING_CHANNEL2:camt59}
     camt.054.001.08: ${ROUTING_CHANNEL3:camt_52_54}
     camt.052.001.08: ${ROUTING_CHANNEL4:camt_52_54}
-    admi: ${ROUTING_CHANNEL5:channelA}
+    admi.004.001.01: ${ROUTING_CHANNEL5:admi004}
+    admi.004.001.02: ${ROUTING_CHANNEL5:admi004}
 
 message:
   xpath:
@@ -40,3 +41,4 @@ topic:
   ephtopic: ${EPHTOPIC:EPHTOPIC}
   sfmstopic: ${SFMSTOPIC:SFMSTOPIC}
 
+cug_flag: ${CUG_FLAG:true}

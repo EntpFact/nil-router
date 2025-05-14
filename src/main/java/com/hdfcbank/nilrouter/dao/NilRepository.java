@@ -78,4 +78,15 @@ public class NilRepository {
         namedParameterJdbcTemplate.batchUpdate(sql, batchParams.toArray(new MapSqlParameterSource[0]));
     }
 
+    public boolean cugAccountExists(String accountNo) {
+        String sql = "SELECT COUNT(*) FROM network_il.cug_account WHERE cug_account_no = :accountNo";
+
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("accountNo", accountNo);
+
+        Integer count = namedParameterJdbcTemplate.queryForObject(sql, params, Integer.class);
+
+        return count != null && count > 0;
+    }
+
 }

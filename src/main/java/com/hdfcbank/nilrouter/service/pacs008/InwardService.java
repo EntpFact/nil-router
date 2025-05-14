@@ -30,7 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
-public class LateReturn {
+public class InwardService {
 
     @Autowired
     private NilRepository nilRepository;
@@ -44,7 +44,69 @@ public class LateReturn {
     @Value("${topic.ephtopic}")
     private String ephtopic;
 
-    public void splitXmlByTransactions(String xmlPayload) throws Exception {
+    public void processFreshInward(String xmlPayload) throws Exception {
+        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+        dbFactory.setNamespaceAware(true);
+        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+        Document originalDoc = dBuilder.parse(new InputSource(new StringReader(xmlPayload)));
+        originalDoc.getDocumentElement().normalize();
+
+        XPath xpath = XPathFactory.newInstance().newXPath();
+        Node msgIdNode = (Node) xpath.evaluate("//*[local-name()='AppHdr']/*[local-name()='BizMsgIdr']", originalDoc, XPathConstants.NODE);
+        String msgId = msgIdNode.getTextContent().trim();
+        char ch = msgId.charAt(13);
+        String target = "";
+        if (ch >= '0' && ch <= '4') {
+            target = "FC";
+        } else if (ch >= '5' && ch <= '9') {
+            target = "EPH";
+        }
+
+        MsgEventTracker tracker = new MsgEventTracker();
+        tracker.setMsgId(msgId);
+        tracker.setSource("NIL");
+        tracker.setTarget(target);
+        tracker.setFlowType("inward");
+        tracker.setMsgType("pacs008");
+        tracker.setOrgnlReq(xmlPayload);
+
+        nilRepository.saveDataInMsgEventTracker(tracker);
+
+        List<TransactionAudit> listOfTransactions = new ArrayList<>();
+
+        NodeList txNodes = (NodeList) xpath.evaluate("//*[local-name()='CdtTrfTxInf']", originalDoc, XPathConstants.NODESET);
+        for (int i = 0; i < txNodes.getLength(); i++) {
+            Node txNode = txNodes.item(i);
+
+            TransactionAudit transaction = new TransactionAudit();
+            transaction.setMsgId(msgId);
+            transaction.setEndToEndId(evaluateText(xpath, txNode, ".//*[local-name()='EndToEndId']"));
+            transaction.setTxnId(evaluateText(xpath, txNode, ".//*[local-name()='TxId']"));
+            transaction.setAmount(new BigDecimal(evaluateText(xpath, txNode, ".//*[local-name()='IntrBkSttlmAmt']")));
+            transaction.setBatchId(evaluateText(xpath, txNode, ".//*[local-name()='RmtInf']//*[local-name()='Ustrd']"));
+            transaction.setMsgType("pacs008");
+            transaction.setSource("NIL");
+            transaction.setTarget(target);
+            transaction.setFlowType("inward");
+            transaction.setMsgType("pacs008");
+
+            listOfTransactions.add(transaction);
+
+        }
+
+        nilRepository.saveAllTransactionAudits(listOfTransactions);
+
+        if (target.equalsIgnoreCase("FC")) {
+            kafkaUtils.publishToResponseTopic(xmlPayload, fctopic);
+        } else {
+            kafkaUtils.publishToResponseTopic(xmlPayload, ephtopic);
+
+        }
+
+
+    }
+
+    public void processLateReturn(String xmlPayload) throws Exception {
 
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         dbFactory.setNamespaceAware(true);
@@ -184,7 +246,7 @@ public class LateReturn {
 
         for (String token : tokens) {
             token = token.trim();
-            if ((token.startsWith("HDFCN") && token.length() == 22)) {
+            if ((token.startsWith("HDFCN") && token.length() == 22 && Character.isDigit(token.charAt(14)))) {
                 return token;
             }
         }

@@ -25,10 +25,7 @@ import java.io.StringReader;
 public class Pacs008XmlProcessor {
 
     @Autowired
-    private LateReturn lateReturn;
-
-    @Autowired
-    private FreshInward freshInward;
+    private InwardService inwardService;
 
     @Autowired
     AuditService auditService;
@@ -36,8 +33,14 @@ public class Pacs008XmlProcessor {
     @Autowired
     private KafkaUtils kafkaUtils;
 
+    @Autowired
+    private CugApproach cugApproach;
+
     @Value("${topic.sfmstopic}")
     private String sfmstopic;
+
+    @Value("${cug_flag}")
+    private String cugFlag;
 
     @Autowired
     private UtilityMethods utilityMethods;
@@ -49,10 +52,14 @@ public class Pacs008XmlProcessor {
             auditService.auditData(xmlString);
             kafkaUtils.publishToResponseTopic(xmlString, sfmstopic);
         } else {
-            if (containsReturnTags(xmlString)) {
-                lateReturn.splitXmlByTransactions(xmlString);
+            if (cugFlag.equalsIgnoreCase("true")) {
+                cugApproach.processCugApproach(xmlString);
             } else {
-                freshInward.auditForFreshInward(xmlString);
+                if (containsReturnTags(xmlString)) {
+                    inwardService.processLateReturn(xmlString);
+                } else {
+                    inwardService.processFreshInward(xmlString);
+                }
             }
         }
     }
@@ -96,11 +103,11 @@ public class Pacs008XmlProcessor {
     }
 
     private boolean containsValidId(String text) {
-        // Valid if it contains a substring that starts with HDFCH (XUTR) or HDFCN (Transaction ID)
+        // Valid if it contains a substring that starts with HDFCN (Transaction ID)
         String[] tokens = text.split("[^A-Za-z0-9]");
         for (String token : tokens) {
             token = token.trim();
-            if ((token.startsWith("HDFCN") && token.length() == 22)) {
+            if ((token.startsWith("HDFCN") && token.length() == 22 && Character.isDigit(token.charAt(14)))) {
                 return true;
             }
         }

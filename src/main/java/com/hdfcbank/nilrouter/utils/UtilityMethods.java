@@ -16,6 +16,7 @@ import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
 import java.io.IOException;
 import java.io.StringReader;
+import java.math.BigDecimal;
 
 @Slf4j
 @Component
@@ -34,6 +35,23 @@ public class UtilityMethods {
         String msgId = msgIdNode != null ? msgIdNode.getTextContent().trim() : null;
         return msgId;
 
+    }
+
+    public BigDecimal getTotalAmount(Document originalDoc) throws XPathExpressionException {
+        XPath xpath = XPathFactory.newInstance().newXPath();
+        String totalAmountString = (String) xpath.evaluate("//*[local-name()='GrpHdr']/*[local-name()='TtlIntrBkSttlmAmt']", originalDoc, XPathConstants.STRING);
+        BigDecimal totalAmount = new BigDecimal(totalAmountString);
+        return totalAmount;
+
+    }
+
+    public String evaluateText(XPath xpath, Node node, String expression) {
+        try {
+            Node result = (Node) xpath.evaluate(expression, node, XPathConstants.NODE);
+            return result != null ? result.getTextContent().trim() : "";
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     public boolean isOutward(String xml) {

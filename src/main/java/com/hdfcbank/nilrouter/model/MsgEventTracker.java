@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -18,7 +19,7 @@ public class MsgEventTracker {
     private String msgType;
     private String orgnlReq;
     private Integer orgnlReqCount;
-    private String consolidateAmt;
+    private BigDecimal consolidateAmt;
     private String intermediateReq;
     private Integer intermediateCount;
     private String status;

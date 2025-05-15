@@ -41,4 +41,4 @@ topic:
   ephtopic: ${EPHTOPIC:EPHTOPIC}
   sfmstopic: ${SFMSTOPIC:SFMSTOPIC}
 
-cug_flag: ${CUG_FLAG:true}
+cug_flag: ${CUG_FLAG:false}

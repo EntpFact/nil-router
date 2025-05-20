@@ -1,12 +1,11 @@
-package com.hdfcbank.nilrouter.service.camt;
+package com.hdfcbank.nilrouter.service.pacs002;
 
 
 import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
-import com.hdfcbank.nilrouter.model.Camt59Fields;
 import com.hdfcbank.nilrouter.model.MsgEventTracker;
+import com.hdfcbank.nilrouter.model.Pacs002Fields;
 import com.hdfcbank.nilrouter.model.TransactionAudit;
-import com.hdfcbank.nilrouter.service.AuditService;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,7 +39,7 @@ import java.util.regex.Pattern;
 
 @Slf4j
 @Service
-public class Camt59XmlProcessor {
+public class Pacs002XmlProcessor {
 
     @Value("${topic.sfmstopic}")
     private String sfmstopic;
@@ -58,27 +57,19 @@ public class Camt59XmlProcessor {
     UtilityMethods utilityMethods;
 
     @Autowired
-    AuditService auditService;
-
-    @Autowired
     KafkaUtils kafkaUtils;
 
-    @ServiceActivator(inputChannel = "camt59")
+    @ServiceActivator(inputChannel = "pacs002")
     public void processXML(String xml) {
 
-        if (utilityMethods.isOutward(xml)) {
-            auditService.auditData(xml);
-            //Send to SFMS
-            kafkaUtils.publishToResponseTopic(xml, sfmstopic);
 
-        } else {
-            processCamt59InwardMessage(xml);
-        }
+        processPacs002InwardMessage(xml);
+
     }
 
-    private void processCamt59InwardMessage(String xml) {
-        List<Camt59Fields> camt59 = new ArrayList<>();
-        String bizMsgIdr = null, orgnlItmId = null, orgnlEndToEndId = null;
+    private void processPacs002InwardMessage(String xml) {
+        List<Pacs002Fields> pacs002 = new ArrayList<>();
+        String bizMsgIdr = null, orgnlTxId = null, orgnlEndToEndId = null;
         try {
 
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -95,34 +86,47 @@ public class Camt59XmlProcessor {
             boolean has0to4 = false, has5to9 = false;
             int ephCount = 0, fcCount = 0;
 
-            NodeList orgnlItmAndStsList = (NodeList) xpath.evaluate("/*[local-name()='RequestPayload']/*[local-name()='Document']//*[local-name()='OrgnlItmAndSts']", document, XPathConstants.NODESET);
+            NodeList txInfAndStsList = (NodeList) xpath.evaluate("/*[local-name()='RequestPayload']/*[local-name()='Document']//*[local-name()='TxInfAndSts']", document, XPathConstants.NODESET);
 
-            for (int i = 0; i < orgnlItmAndStsList.getLength(); i++) {
-                Element orgnlItmAndSts = (Element) orgnlItmAndStsList.item(i);
+            for (int i = 0; i < txInfAndStsList.getLength(); i++) {
+                Element txInfAndSts = (Element) txInfAndStsList.item(i);
 
-                orgnlItmId = xpath.evaluate("./*[local-name()='OrgnlItmId']", orgnlItmAndSts);
-                orgnlEndToEndId = xpath.evaluate("./*[local-name()='OrgnlEndToEndId']", orgnlItmAndSts);
+                orgnlTxId = xpath.evaluate("./*[local-name()='OrgnlTxId']", txInfAndSts);
+                orgnlEndToEndId = xpath.evaluate("./*[local-name()='OrgnlEndToEndId']", txInfAndSts);
 
-                int digit = extractOrgnlItmIdDigit(orgnlItmId);
-
+                int digit = extractOrgnlItmIdDigit(orgnlTxId);
 
                 if (digit >= 0 && digit <= 4) {
                     has0to4 = true;
                     fcCount++;
-                    camt59.add(new Camt59Fields(bizMsgIdr, orgnlEndToEndId, orgnlItmId, "FC"));
+                    pacs002.add(new Pacs002Fields(bizMsgIdr, orgnlEndToEndId, orgnlTxId, "FC"));
                 } else if (digit >= 5 && digit <= 9) {
                     has5to9 = true;
                     ephCount++;
-                    camt59.add(new Camt59Fields(bizMsgIdr, orgnlEndToEndId, orgnlItmId, "EPH"));
+                    pacs002.add(new Pacs002Fields(bizMsgIdr, orgnlEndToEndId, orgnlTxId, "EPH"));
+                } else if (digit == -1) {
+                    // Check DB for the Pacs08 Inward Transaction by txn ID
+                    String target = dao.findTargetByTxnId(orgnlTxId);
+                    if ("FC".equalsIgnoreCase(target)) {
+                        has0to4 = true;
+                        fcCount++;
+                        pacs002.add(new Pacs002Fields(bizMsgIdr, orgnlEndToEndId, orgnlTxId, "FC"));
+                    } else if ("EPH".equalsIgnoreCase(target)) {
+                        has5to9 = true;
+                        ephCount++;
+                        pacs002.add(new Pacs002Fields(bizMsgIdr, orgnlEndToEndId, orgnlTxId, "EPH"));
+                    } else {
+                        log.warn("Unknown target for txn ID: {}", orgnlTxId);
+                    }
                 }
             }
 
 
             if (has0to4 && !has5to9) {
-                Document outputDoc = filterOrgnlItmAndSts(document, 0, 4);
+                Document outputDoc = filterTxInfAndSts(document, 0, 4);
 
                 String outputDocString = documentToXml(document);
-                //log.info("FC  : {}", outputDocString);
+                log.info("FC  : {}", outputDocString);
 
                 MsgEventTracker tracker = new MsgEventTracker();
                 tracker.setMsgId(utilityMethods.getBizMsgIdr(document));
@@ -139,9 +143,9 @@ public class Camt59XmlProcessor {
 
 
             } else if (!has0to4 && has5to9) {
-                Document outputDoc = filterOrgnlItmAndSts(document, 5, 9);
+                Document outputDoc = filterTxInfAndSts(document, 5, 9);
                 String outputDocString = documentToXml(outputDoc);
-                //log.info("EPH : {}", outputDocString);
+                log.info("EPH : {}", outputDocString);
 
                 MsgEventTracker tracker = new MsgEventTracker();
                 tracker.setMsgId(utilityMethods.getBizMsgIdr(document));
@@ -157,12 +161,12 @@ public class Camt59XmlProcessor {
                 dao.saveDataInMsgEventTracker(tracker);
 
             } else if (has0to4 && has5to9) {
-                Document outputDoc1 = filterOrgnlItmAndSts(document, 0, 4);
-                Document outputDoc2 = filterOrgnlItmAndSts(document, 5, 9);
+                Document outputDoc1 = filterTxInfAndSts(document, 0, 4);
+                Document outputDoc2 = filterTxInfAndSts(document, 5, 9);
                 String outputDocString = documentToXml(outputDoc1);
-                //log.info("FC : {}", outputDocString);
+                log.info("FC : {}", outputDocString);
                 String outputDocString1 = documentToXml(outputDoc2);
-                //log.info("EPH : {}", outputDocString1);
+                log.info("EPH : {}", outputDocString1);
 
                 MsgEventTracker fcTracker = new MsgEventTracker();
                 fcTracker.setMsgId(utilityMethods.getBizMsgIdr(document));
@@ -172,7 +176,7 @@ public class Camt59XmlProcessor {
                 fcTracker.setMsgType(utilityMethods.getMsgDefIdr(document));
                 fcTracker.setOrgnlReq(xml);
                 fcTracker.setIntermediateReq(outputDocString);
-                fcTracker.setOrgnlReqCount(camt59.size());
+                fcTracker.setOrgnlReqCount(pacs002.size());
                 fcTracker.setIntermediateCount(fcCount);
 
                 MsgEventTracker ephTracker = new MsgEventTracker();
@@ -183,7 +187,7 @@ public class Camt59XmlProcessor {
                 ephTracker.setMsgType(utilityMethods.getMsgDefIdr(document));
                 ephTracker.setOrgnlReq(xml);
                 ephTracker.setIntermediateReq(outputDocString1);
-                ephTracker.setOrgnlReqCount(camt59.size());
+                ephTracker.setOrgnlReqCount(pacs002.size());
                 ephTracker.setIntermediateCount(ephCount);
 
 
@@ -195,7 +199,7 @@ public class Camt59XmlProcessor {
                 dao.saveDataInMsgEventTracker(ephTracker);
             }
 
-            List<TransactionAudit> transactionAudits = extractCamt59Transactions(document, xml, camt59);
+            List<TransactionAudit> transactionAudits = extractPacs002Transactions(document, xml, pacs002);
 
             dao.saveAllTransactionAudits(transactionAudits);
 
@@ -204,21 +208,22 @@ public class Camt59XmlProcessor {
         }
     }
 
-    public List<TransactionAudit> extractCamt59Transactions(Document originalDoc, String xml, List<Camt59Fields> camt59Fields) throws XPathExpressionException {
+    public List<TransactionAudit> extractPacs002Transactions(Document originalDoc, String xml, List<Pacs002Fields> pacs002Fields) throws XPathExpressionException {
         List<TransactionAudit> listOfTransactions = new ArrayList<>();
 
         String msgId = utilityMethods.getBizMsgIdr(originalDoc);
+        String msgType = utilityMethods.getMsgDefIdr(originalDoc);
 
-        for (Camt59Fields camt59 : camt59Fields) {
+        for (Pacs002Fields pacs002 : pacs002Fields) {
 
             TransactionAudit transaction = new TransactionAudit();
             transaction.setMsgId(msgId);
-            transaction.setEndToEndId(camt59.getEndToEndId());
-            transaction.setTxnId(camt59.getTxId());
+            transaction.setEndToEndId(pacs002.getEndToEndId());
+            transaction.setTxnId(pacs002.getTxId());
             //transaction.setAmount(new BigDecimal(evaluateText(xpath, txNode, ".//*[local-name()='Amt']")));
-            transaction.setMsgType("camt.059.001.06");
+            transaction.setMsgType(msgType);
             transaction.setSource("NIL");
-            transaction.setTarget(camt59.getSwtch());
+            transaction.setTarget(pacs002.getSwtch());
             transaction.setFlowType("Inward");
             transaction.setReqPayload(xml);
 
@@ -227,82 +232,71 @@ public class Camt59XmlProcessor {
         return listOfTransactions;
     }
 
-    private static Document filterOrgnlItmAndSts(Document document, int minDigit, int maxDigit) throws Exception {
+    public Document filterTxInfAndSts(Document document, int minDigit, int maxDigit) throws Exception {
+        XPath xpath = XPathFactory.newInstance().newXPath();
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(true);
         DocumentBuilder builder = factory.newDocumentBuilder();
         Document newDoc = builder.newDocument();
 
-        // Copy root element <RequestPayload> without children
-        Element root = (Element) newDoc.importNode(document.getDocumentElement(), false);
+        // Create <RequestPayload> root
+        Element root = newDoc.createElement("RequestPayload");
         newDoc.appendChild(root);
 
-        //  Dynamically copy <AppHdr> preserving namespaces
-        NodeList children = document.getDocumentElement().getChildNodes();
-        for (int i = 0; i < children.getLength(); i++) {
-            Node child = children.item(i);
-            if ("AppHdr".equals(child.getLocalName())) {
-                Node importedAppHdr = newDoc.importNode(child, true);
-                root.appendChild(importedAppHdr);
-                break;
-            }
+        // Copy <AppHdr>
+        Node appHdr = (Node) xpath.evaluate("/*[local-name()='RequestPayload']/*[local-name()='AppHdr']", document, XPathConstants.NODE);
+        if (appHdr != null) {
+            root.appendChild(newDoc.importNode(appHdr, true));
         }
 
-        XPath xpath = XPathFactory.newInstance().newXPath();
+        // Find <Document> and determine its namespace
+        Node originalDocNode = (Node) xpath.evaluate("/*[local-name()='RequestPayload']/*[local-name()='Document']", document, XPathConstants.NODE);
+        if (originalDocNode == null) {
+            throw new RuntimeException("Document element not found.");
+        }
 
-        // Copy <Document> subtree if exists
-        NodeList documentList = (NodeList) xpath.evaluate("/*[local-name()='RequestPayload']/*[local-name()='Document']", document, XPathConstants.NODESET);
-        if (documentList.getLength() > 0) {
-            Element originalDocument = (Element) documentList.item(0);
-            String namespaceUri = originalDocument.getNamespaceURI();
-            Element newDocumentElem = newDoc.createElementNS(namespaceUri, "Document");
-            root.appendChild(newDocumentElem);
+        String namespaceUri = originalDocNode.getNamespaceURI();
+        Element newDocumentElem = newDoc.createElementNS(namespaceUri, "Document");
+        root.appendChild(newDocumentElem);
 
-            // Create and append <NtfctnToRcvStsRpt>
-            Element ntfctnToRcvStsRpt = newDoc.createElementNS(namespaceUri, "NtfctnToRcvStsRpt");
-            newDocumentElem.appendChild(ntfctnToRcvStsRpt);
+        // Find <FIToFIPmtStsRpt>
+        Node fiToFiRptNode = (Node) xpath.evaluate(".//*[local-name()='FIToFIPmtStsRpt']", originalDocNode, XPathConstants.NODE);
+        if (fiToFiRptNode == null) {
+            throw new RuntimeException("FIToFIPmtStsRpt element not found.");
+        }
 
-            // Copy <GrpHdr>
-            NodeList grpHdrList = originalDocument.getElementsByTagNameNS("*", "GrpHdr");
-            if (grpHdrList.getLength() > 0) {
-                ntfctnToRcvStsRpt.appendChild(newDoc.importNode(grpHdrList.item(0), true));
-            }
+        Element newFIToFIPmtStsRpt = newDoc.createElementNS(namespaceUri, "FIToFIPmtStsRpt");
+        newDocumentElem.appendChild(newFIToFIPmtStsRpt);
 
-            // Process <OrgnlNtfctnRef> and filter <OrgnlItmAndSts>
-            NodeList orgnlNtfctnRefs = originalDocument.getElementsByTagNameNS("*", "OrgnlNtfctnRef");
-            Element newOrgnlNtfctnAndSts = newDoc.createElementNS(namespaceUri, "OrgnlNtfctnAndSts");
-            boolean hasValidEntries = false;
+        // Copy <GrpHdr>
+        Node grpHdr = (Node) xpath.evaluate("./*[local-name()='GrpHdr']", fiToFiRptNode, XPathConstants.NODE);
+        if (grpHdr != null) {
+            newFIToFIPmtStsRpt.appendChild(newDoc.importNode(grpHdr, true));
+        }
 
-            for (int i = 0; i < orgnlNtfctnRefs.getLength(); i++) {
-                Element orgnlNtfctnRef = (Element) orgnlNtfctnRefs.item(i);
-                NodeList itmAndStsList = orgnlNtfctnRef.getElementsByTagNameNS("*", "OrgnlItmAndSts");
+        // Filter and append eligible <TxInfAndSts>
+        NodeList txInfList = (NodeList) xpath.evaluate("./*[local-name()='TxInfAndSts']", fiToFiRptNode, XPathConstants.NODESET);
+        for (int i = 0; i < txInfList.getLength(); i++) {
+            Element txInf = (Element) txInfList.item(i);
+            String orgnlTxId = xpath.evaluate("./*[local-name()='OrgnlTxId']", txInf);
 
-                for (int j = 0; j < itmAndStsList.getLength(); j++) {
-                    Element orgnlItmAndSts = (Element) itmAndStsList.item(j);
-                    String orgnlItmId = xpath.evaluate("./*[local-name()='OrgnlItmId']", orgnlItmAndSts);
-
-                    int digit = extractOrgnlItmIdDigit(orgnlItmId);
-                    if (digit >= minDigit && digit <= maxDigit) {
-                        Element newOrgnlNtfctnRef = newDoc.createElementNS(namespaceUri, "OrgnlNtfctnRef");
-
-                        NodeList dbtrAgtList = orgnlNtfctnRef.getElementsByTagNameNS("*", "DbtrAgt");
-                        if (dbtrAgtList.getLength() > 0) {
-                            newOrgnlNtfctnRef.appendChild(newDoc.importNode(dbtrAgtList.item(0), true));
-                        }
-
-                        newOrgnlNtfctnRef.appendChild(newDoc.importNode(orgnlItmAndSts, true));
-                        newOrgnlNtfctnAndSts.appendChild(newOrgnlNtfctnRef);
-                        hasValidEntries = true;
-                    }
+            int digit = extractOrgnlItmIdDigit(orgnlTxId);
+            if (digit == -1) {
+                String target = dao.findTargetByTxnId(orgnlTxId);
+                if ("FC".equalsIgnoreCase(target)) {
+                    digit = 0; // Mark as acceptable for 0–4
+                } else if ("EPH".equalsIgnoreCase(target)) {
+                    digit = 9; // Mark as acceptable for 5–9
                 }
             }
 
-            if (hasValidEntries) {
-                ntfctnToRcvStsRpt.appendChild(newOrgnlNtfctnAndSts);
+            // Apply digit filter
+            if (digit >= minDigit && digit <= maxDigit) {
+                Node imported = newDoc.importNode(txInf, true);
+                newFIToFIPmtStsRpt.appendChild(imported);
             }
         }
-
-        newDoc.setXmlStandalone(true);
+        newDoc.setXmlStandalone(true); // Prevents automatic inclusion of standalone="no"
         return newDoc;
     }
 
@@ -317,18 +311,14 @@ public class Camt59XmlProcessor {
         return writer.toString();
     }
 
-    private static Element createElementNS(Document doc, String localName) {
-        final String CAMT_NS = "urn:iso:std:iso:20022:tech:xsd:camt.059.001.06";
-        return doc.createElementNS(CAMT_NS, localName);
-    }
 
     private static int extractOrgnlItmIdDigit(String orgnlItmId) {
 
-        Pattern pattern = Pattern.compile("^.{14}(.)"); // 14 characters, then capture the 15th
+        Pattern pattern = Pattern.compile("^HDFCN.{9}(.)");
         Matcher matcher = pattern.matcher(orgnlItmId);
 
         if (matcher.find()) {
-            return Character.getNumericValue(matcher.group(1).charAt(0));
+            return Integer.parseInt(matcher.group(1));
         }
         return -1;
     }

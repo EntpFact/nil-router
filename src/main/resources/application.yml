@@ -28,6 +28,7 @@ routing:
     camt.052.001.08: ${ROUTING_CHANNEL4:camt_52_54}
     admi.004.001.01: ${ROUTING_CHANNEL5:admi004}
     admi.004.001.02: ${ROUTING_CHANNEL5:admi004}
+    pacs.002.001.11: ${ROUTING_CHANNEL6:pacs002}
 
 message:
   xpath:

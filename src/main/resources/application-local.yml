@@ -46,6 +46,7 @@ routing:
     camt.052.001.08: camt_52_54
     admi.004.001.01: admi004
     admi.004.001.02: admi004
+    pacs.002.001.11: pacs002
 
 message:
   xpath:

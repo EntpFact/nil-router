@@ -29,3 +29,4 @@ routing:
 topic:
   fctopic: ${FCTOPIC:FCTOPIC}
   ephtopic: ${EPHTOPIC:EPHTOPIC}
+  sfmstopic: SFMSTOPIC

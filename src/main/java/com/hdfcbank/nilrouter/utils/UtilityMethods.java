@@ -3,12 +3,24 @@ package com.hdfcbank.nilrouter.utils;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
+import lombok.extern.slf4j.Slf4j;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
+import java.io.IOException;
+import java.io.StringReader;
+import java.io.StringReader;
+import java.math.BigDecimal;
 
+@Slf4j
 @Component
 public class UtilityMethods {
 
@@ -25,6 +37,36 @@ public class UtilityMethods {
         String msgId = msgIdNode != null ? msgIdNode.getTextContent().trim() : null;
         return msgId;
 
+    }
+
+
+    public boolean isOutward(String xml) {
+        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+        dbFactory.setNamespaceAware(true);
+        DocumentBuilder dBuilder = null;
+        try {
+            dBuilder = dbFactory.newDocumentBuilder();
+            Document doc = dBuilder.parse(new InputSource(new StringReader(xml)));
+
+            String fromMmbId = doc.getElementsByTagName("Fr").item(0)
+                    .getTextContent().trim().toUpperCase();
+
+            String toMmbId = doc.getElementsByTagName("To").item(0)
+                    .getTextContent().trim().toUpperCase();
+            if (fromMmbId.contains("HDFC") && toMmbId.contains("RBI")) {
+                // Outward flow
+                return true;
+            }
+
+        } catch (ParserConfigurationException e) {
+            log.error(e.toString());
+        } catch (IOException e) {
+            log.error(e.toString());
+        } catch (SAXException e) {
+            log.error(e.toString());
+        }
+
+        return false;
     }
 
 }

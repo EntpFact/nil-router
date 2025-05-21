@@ -57,8 +57,19 @@ public class Pacs004XmlProcessor {
     @Value("${topic.ephtopic}")
     String ephTopic;
 
+    @Autowired
+    Pacs004XmlOutwardprocess outwardService;
 
     @ServiceActivator(inputChannel = "pacs004")
+    public void parseXml(String xmlString) throws Exception {
+
+        if (utilityMethods.isOutward(xmlString)) {
+            outwardService.processXML(xmlString);
+        } else {
+                    processXML(xmlString);
+                }
+
+    }
     public void processXML(String xml) {
         List<Pacs004Fields> pacs004 = new ArrayList<>();
         String bizMsgIdr = null, orgnlItmId = null, orgnlEndToEndId = null;
@@ -94,7 +105,7 @@ public class Pacs004XmlProcessor {
                 for(int j=0;j<batchIdList.getLength();j++){
                     String batchId=(batchIdList.item(j)).getTextContent();
                     if(batchId.contains("BatchId")){
-                         batchIdValue=batchId.substring(batchId.indexOf(":")+1);
+                         batchIdValue=batchId;
                     }
 
                 }
@@ -271,15 +282,12 @@ public class Pacs004XmlProcessor {
                     tlRtrdIntrBkSttlmAmt.setTextContent(String.valueOf(total));
                 }
 
-//                Element tlRtrdIntrBkSttlmAmt = createElementNS(newDoc,"TtlRtrdIntrBkSttlmAmt");
-
-//                grpHdrList.item(0).appendChild(nbOfTxs);
                 PmtRtr.appendChild(newDoc.importNode(grpHdrList.item(0), true));
 
             }
 
             NodeList txInf = (NodeList) xpath.evaluate(".//*[local-name()='TxInf']", originalDocument, XPathConstants.NODESET);
-            Element newTxInf = createElementNS(newDoc, "TxInf");
+            Element newTxInf = createElementNS(newDoc, "Info");
 
             boolean hasValidEntries = false;
 
@@ -293,15 +301,8 @@ public class Pacs004XmlProcessor {
 
                     int digit = extractEndToEndIdDigit(orgnlTxId);
                     if (digit >= minDigit && digit <= maxDigit) {
-                        Element newTxInfSts = createElementNS(newDoc, "TxInf");
-
-                        NodeList dbtrAgtList = (NodeList) xpath.evaluate(".//*[local-name()='DbtrAgt']", orgnlNtfctnRef, XPathConstants.NODESET);
-                        if (dbtrAgtList.getLength() > 0) {
-                            newTxInfSts.appendChild(newDoc.importNode(dbtrAgtList.item(0), true));
-                        }
-
-                        newTxInfSts.appendChild(newDoc.importNode(orgnlNtfctnRef, true));
-                        newTxInf.appendChild(newTxInfSts);
+//                        newTxInfSts.appendChild(newDoc.importNode(orgnlNtfctnRef, true));
+                        newTxInf.appendChild(newDoc.importNode(orgnlNtfctnRef, true));
                         hasValidEntries = true;
                     }
 //                }

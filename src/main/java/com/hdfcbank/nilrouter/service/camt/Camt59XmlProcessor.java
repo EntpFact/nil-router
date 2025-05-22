@@ -5,7 +5,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
-import com.hdfcbank.nilrouter.model.*;
+import com.hdfcbank.nilrouter.model.Body;
+import com.hdfcbank.nilrouter.model.Camt59Fields;
+import com.hdfcbank.nilrouter.model.Header;
+import com.hdfcbank.nilrouter.model.MessageEventTracker;
 import com.hdfcbank.nilrouter.service.AuditService;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import lombok.extern.slf4j.Slf4j;
@@ -46,13 +49,16 @@ import java.util.regex.Pattern;
 public class Camt59XmlProcessor {
 
     @Value("${topic.sfmstopic}")
-    private String sfmstopic;
+    private String sfmsTopic;
 
     @Value("${topic.fctopic}")
-    private String fctopic;
+    private String fcTopic;
 
     @Value("${topic.ephtopic}")
-    private String ephtopic;
+    private String ephTopic;
+
+    @Value("${topic.msgeventtrackertopic}")
+    private String msgEventTrackerTopic;
 
     @Autowired
     NilRepository dao;
@@ -70,8 +76,6 @@ public class Camt59XmlProcessor {
     public void processXML(String xml) {
 
         if (utilityMethods.isOutward(xml)) {
-            //auditService.auditData(xml);
-
 
             String json = null;
 
@@ -90,13 +94,6 @@ public class Camt59XmlProcessor {
                 header.setTargetSFMS(true);
                 header.setFlowType("Outward");
                 header.setMsgType(utilityMethods.getMsgDefIdr(document));
-                //header.setBatchId("BATCH-001");
-                // header.setOrignlReqCount(camt59.size());
-                //header.setConsolidateAmt("100000");
-                //header.setConsolidateAmtEPH("60000");
-                //header.setConsolidateAmtFC("40000");
-                //header.setIntermediateReqFCCount(ephCount);
-                //header.setIntermediateReqEPHCount(fcCount);
 
                 Body body = new Body();
                 body.setReqPayload(xml);
@@ -110,8 +107,7 @@ public class Camt59XmlProcessor {
                 ObjectMapper mapper = new ObjectMapper();
 
                 json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(wrapper);
-
-                // Send json to Message Tracker service
+                log.info("Camt59 Outward Json : {}", json);
 
 
             } catch (JsonProcessingException e) {
@@ -125,11 +121,11 @@ public class Camt59XmlProcessor {
             } catch (XPathExpressionException e) {
                 throw new RuntimeException(e);
             }
-            System.out.println(json);
 
-
+            // Send to message-event-tracker-service topic
+            kafkaUtils.publishToResponseTopic(json, msgEventTrackerTopic);
             //Send to SFMS
-            kafkaUtils.publishToResponseTopic(xml, sfmstopic);
+            kafkaUtils.publishToResponseTopic(xml, sfmsTopic);
 
         } else {
             processCamt59InwardMessage(xml);
@@ -140,7 +136,7 @@ public class Camt59XmlProcessor {
         List<Camt59Fields> camt59 = new ArrayList<>();
 
         Document fcOutputDoc, ephOutputDoc;
-        String fcOutputDocString=null, ephOutputDocString=null;
+        String fcOutputDocString = null, ephOutputDocString = null;
 
         String bizMsgIdr = null, orgnlItmId = null, orgnlEndToEndId = null;
         try {
@@ -156,7 +152,7 @@ public class Camt59XmlProcessor {
 
             bizMsgIdr = xpath.evaluate("/*[local-name()='RequestPayload']/*[local-name()='AppHdr']/*[local-name()='BizMsgIdr']", document);
 
-            boolean has0to4 = false, has5to9 = false, fcPresent=false, ephPresent=false, fcAndEphPresent=false;
+            boolean has0to4 = false, has5to9 = false, fcPresent = false, ephPresent = false, fcAndEphPresent = false;
             int ephCount = 0, fcCount = 0;
 
             NodeList orgnlItmAndStsList = (NodeList) xpath.evaluate("/*[local-name()='RequestPayload']/*[local-name()='Document']//*[local-name()='OrgnlItmAndSts']", document, XPathConstants.NODESET);
@@ -185,22 +181,22 @@ public class Camt59XmlProcessor {
             if (has0to4 && !has5to9) {
                 fcOutputDoc = filterOrgnlItmAndSts(document, 0, 4);
 
-                fcOutputDocString = documentToXml(document);
+                fcOutputDocString = documentToXml(fcOutputDoc);
                 //log.info("FC  : {}", outputDocString);
 
-                fcPresent=true;
+                fcPresent = true;
                 //Send to FC TOPIC
-                kafkaUtils.publishToResponseTopic(fcOutputDocString, fctopic);
+                kafkaUtils.publishToResponseTopic(fcOutputDocString, fcTopic);
 
             } else if (!has0to4 && has5to9) {
                 ephOutputDoc = filterOrgnlItmAndSts(document, 5, 9);
                 ephOutputDocString = documentToXml(ephOutputDoc);
                 //log.info("EPH : {}", outputDocString);
 
-                ephPresent=true;
+                ephPresent = true;
 
                 //Send to EPH TOPIC
-                kafkaUtils.publishToResponseTopic(ephOutputDocString, ephtopic);
+                kafkaUtils.publishToResponseTopic(ephOutputDocString, ephTopic);
 
 
             } else if (has0to4 && has5to9) {
@@ -211,14 +207,12 @@ public class Camt59XmlProcessor {
                 ephOutputDocString = documentToXml(ephOutputDoc);
                 //log.info("EPH : {}", outputDocString1);
 
-                fcAndEphPresent=true;
-
-
+                fcAndEphPresent = true;
 
                 //Send to FC & EPH TOPIC
-                kafkaUtils.publishToResponseTopic(fcOutputDocString, fctopic);
-                kafkaUtils.publishToResponseTopic(ephOutputDocString, ephtopic);
-                // Save to DB
+                kafkaUtils.publishToResponseTopic(fcOutputDocString, fcTopic);
+                kafkaUtils.publishToResponseTopic(ephOutputDocString, ephTopic);
+
             }
 
 
@@ -230,7 +224,6 @@ public class Camt59XmlProcessor {
             header.setTargetFCEPH(fcAndEphPresent);
             header.setFlowType("Inward");
             header.setMsgType(utilityMethods.getMsgDefIdr(document));
-            //header.setBatchId("BATCH-001");
             header.setOrignlReqCount(camt59.size());
             //header.setConsolidateAmt("100000");
             //header.setConsolidateAmtEPH("60000");
@@ -249,42 +242,17 @@ public class Camt59XmlProcessor {
 
             ObjectMapper mapper = new ObjectMapper();
             String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(wrapper);
-            System.out.println(json);
+            log.info("Camt59 Inward Json : {}", json);
 
+            // Send to message-event-tracker-service topic
+            kafkaUtils.publishToResponseTopic(json, msgEventTrackerTopic);
 
-            // Send json to Message Tracker service
-
-           // List<TransactionAudit> transactionAudits = extractCamt59Transactions(document, xml, camt59);
-
-            //dao.saveAllTransactionAudits(transactionAudits);
 
         } catch (Exception e) {
             log.error(e.toString());
         }
     }
-/*
-    public List<TransactionAudit> extractCamt59Transactions(Document originalDoc, String xml, List<Camt59Fields> camt59Fields) throws XPathExpressionException {
-        List<TransactionAudit> listOfTransactions = new ArrayList<>();
 
-        String msgId = utilityMethods.getBizMsgIdr(originalDoc);
-
-        for (Camt59Fields camt59 : camt59Fields) {
-
-            TransactionAudit transaction = new TransactionAudit();
-            transaction.setMsgId(msgId);
-            transaction.setEndToEndId(camt59.getEndToEndId());
-            transaction.setTxnId(camt59.getTxId());
-            //transaction.setAmount(new BigDecimal(evaluateText(xpath, txNode, ".//*[local-name()='Amt']")));
-            transaction.setMsgType("camt.059.001.06");
-            transaction.setSource("NIL");
-            transaction.setTarget(camt59.getSwtch());
-            transaction.setFlowType("Inward");
-            transaction.setReqPayload(xml);
-
-            listOfTransactions.add(transaction);
-        }
-        return listOfTransactions;
-    }*/
 
     private static Document filterOrgnlItmAndSts(Document document, int minDigit, int maxDigit) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -376,10 +344,6 @@ public class Camt59XmlProcessor {
         return writer.toString();
     }
 
-    private static Element createElementNS(Document doc, String localName) {
-        final String CAMT_NS = "urn:iso:std:iso:20022:tech:xsd:camt.059.001.06";
-        return doc.createElementNS(CAMT_NS, localName);
-    }
 
     private static int extractOrgnlItmIdDigit(String orgnlItmId) {
 

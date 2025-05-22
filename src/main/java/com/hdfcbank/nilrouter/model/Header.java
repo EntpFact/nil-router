@@ -1,6 +1,6 @@
 package com.hdfcbank.nilrouter.model;
 
-import lombok.AllArgsConstructor;
+
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
@@ -25,8 +25,8 @@ public class Header {
     private Integer intermediateReqFCCount;
     private Integer intermediateReqEPHCount;
     private BigDecimal consolidateAmt;
-    private String consolidateAmtEPH;
-    private String consolidateAmtFC;
+    private BigDecimal consolidateAmtEPH;
+    private BigDecimal consolidateAmtFC;
 
 
 }

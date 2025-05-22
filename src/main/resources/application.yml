@@ -41,5 +41,6 @@ topic:
   fctopic: ${FCTOPIC:FCTOPIC}
   ephtopic: ${EPHTOPIC:EPHTOPIC}
   sfmstopic: ${SFMSTOPIC:SFMSTOPIC}
+  msgeventtrackertopic:  ${MSGTOPIC:MSGEVENTTRACKERTOPIC}
 
 cug_flag: ${CUG_FLAG:false}

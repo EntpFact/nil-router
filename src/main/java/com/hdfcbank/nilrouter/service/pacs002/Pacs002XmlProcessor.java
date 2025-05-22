@@ -1,11 +1,13 @@
 package com.hdfcbank.nilrouter.service.pacs002;
 
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
-import com.hdfcbank.nilrouter.model.MsgEventTracker;
+import com.hdfcbank.nilrouter.model.Body;
+import com.hdfcbank.nilrouter.model.Header;
+import com.hdfcbank.nilrouter.model.MessageEventTracker;
 import com.hdfcbank.nilrouter.model.Pacs002Fields;
-import com.hdfcbank.nilrouter.model.TransactionAudit;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +29,6 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
-import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -42,13 +43,16 @@ import java.util.regex.Pattern;
 public class Pacs002XmlProcessor {
 
     @Value("${topic.sfmstopic}")
-    private String sfmstopic;
+    private String sfmsTopic;
 
     @Value("${topic.fctopic}")
-    private String fctopic;
+    private String fcTopic;
 
     @Value("${topic.ephtopic}")
-    private String ephtopic;
+    private String ephTopic;
+
+    @Value("${topic.msgeventtrackertopic}")
+    private String msgEventTrackerTopic;
 
     @Autowired
     NilRepository dao;
@@ -62,14 +66,16 @@ public class Pacs002XmlProcessor {
     @ServiceActivator(inputChannel = "pacs002")
     public void processXML(String xml) {
 
-
-        processPacs002InwardMessage(xml);
-
-    }
-
-    private void processPacs002InwardMessage(String xml) {
         List<Pacs002Fields> pacs002 = new ArrayList<>();
-        String bizMsgIdr = null, orgnlTxId = null, orgnlEndToEndId = null;
+
+        Document fcOutputDoc;
+        Document ephOutputDoc;
+        String fcOutputDocString = null;
+        String ephOutputDocString = null;
+
+        String bizMsgIdr = null;
+        String orgnlTxId = null;
+        String orgnlEndToEndId = null;
         try {
 
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -83,7 +89,7 @@ public class Pacs002XmlProcessor {
 
             bizMsgIdr = xpath.evaluate("/*[local-name()='RequestPayload']/*[local-name()='AppHdr']/*[local-name()='BizMsgIdr']", document);
 
-            boolean has0to4 = false, has5to9 = false;
+            boolean has0to4 = false, has5to9 = false, fcPresent = false, ephPresent = false, fcAndEphPresent = false;
             int ephCount = 0, fcCount = 0;
 
             NodeList txInfAndStsList = (NodeList) xpath.evaluate("/*[local-name()='RequestPayload']/*[local-name()='Document']//*[local-name()='TxInfAndSts']", document, XPathConstants.NODESET);
@@ -123,114 +129,78 @@ public class Pacs002XmlProcessor {
 
 
             if (has0to4 && !has5to9) {
-                Document outputDoc = filterTxInfAndSts(document, 0, 4);
+                fcOutputDoc = filterTxInfAndSts(document, 0, 4);
 
-                String outputDocString = documentToXml(document);
-                log.info("FC  : {}", outputDocString);
+                fcOutputDocString = documentToXml(fcOutputDoc);
+                log.info("FC  : {}", fcOutputDocString);
 
-                MsgEventTracker tracker = new MsgEventTracker();
-                tracker.setMsgId(utilityMethods.getBizMsgIdr(document));
-                tracker.setSource("NIL");
-                tracker.setTarget("FC");
-                tracker.setFlowType("Inward");
-                tracker.setMsgType(utilityMethods.getMsgDefIdr(document));
-                tracker.setOrgnlReq(xml);
+                fcPresent = true;
 
                 //Send to FC TOPIC
-                kafkaUtils.publishToResponseTopic(xml, fctopic);
-                // Save to DB
-                dao.saveDataInMsgEventTracker(tracker);
-
+                kafkaUtils.publishToResponseTopic(xml, fcTopic);
 
             } else if (!has0to4 && has5to9) {
-                Document outputDoc = filterTxInfAndSts(document, 5, 9);
-                String outputDocString = documentToXml(outputDoc);
-                log.info("EPH : {}", outputDocString);
+                ephOutputDoc = filterTxInfAndSts(document, 5, 9);
+                ephOutputDocString = documentToXml(ephOutputDoc);
+                log.info("EPH : {}", ephOutputDocString);
 
-                MsgEventTracker tracker = new MsgEventTracker();
-                tracker.setMsgId(utilityMethods.getBizMsgIdr(document));
-                tracker.setSource("NIL");
-                tracker.setTarget("EPH");
-                tracker.setFlowType("Inward");
-                tracker.setMsgType(utilityMethods.getMsgDefIdr(document));
-                tracker.setOrgnlReq(xml);
+                ephPresent = true;
+
 
                 //Send to EPH TOPIC
-                kafkaUtils.publishToResponseTopic(xml, ephtopic);
-                // Save to DB
-                dao.saveDataInMsgEventTracker(tracker);
+                kafkaUtils.publishToResponseTopic(xml, ephTopic);
 
             } else if (has0to4 && has5to9) {
-                Document outputDoc1 = filterTxInfAndSts(document, 0, 4);
-                Document outputDoc2 = filterTxInfAndSts(document, 5, 9);
-                String outputDocString = documentToXml(outputDoc1);
-                log.info("FC : {}", outputDocString);
-                String outputDocString1 = documentToXml(outputDoc2);
-                log.info("EPH : {}", outputDocString1);
+                fcOutputDoc = filterTxInfAndSts(document, 0, 4);
+                ephOutputDoc = filterTxInfAndSts(document, 5, 9);
+                fcOutputDocString = documentToXml(fcOutputDoc);
+                log.info("FC : {}", fcOutputDocString);
+                ephOutputDocString = documentToXml(ephOutputDoc);
+                log.info("EPH : {}", ephOutputDocString);
 
-                MsgEventTracker fcTracker = new MsgEventTracker();
-                fcTracker.setMsgId(utilityMethods.getBizMsgIdr(document));
-                fcTracker.setSource("NIL");
-                fcTracker.setTarget("FC");
-                fcTracker.setFlowType("Inward");
-                fcTracker.setMsgType(utilityMethods.getMsgDefIdr(document));
-                fcTracker.setOrgnlReq(xml);
-                fcTracker.setIntermediateReq(outputDocString);
-                fcTracker.setOrgnlReqCount(pacs002.size());
-                fcTracker.setIntermediateCount(fcCount);
-
-                MsgEventTracker ephTracker = new MsgEventTracker();
-                ephTracker.setMsgId(utilityMethods.getBizMsgIdr(document));
-                ephTracker.setSource("NIL");
-                ephTracker.setTarget("EPH");
-                ephTracker.setFlowType("Inward");
-                ephTracker.setMsgType(utilityMethods.getMsgDefIdr(document));
-                ephTracker.setOrgnlReq(xml);
-                ephTracker.setIntermediateReq(outputDocString1);
-                ephTracker.setOrgnlReqCount(pacs002.size());
-                ephTracker.setIntermediateCount(ephCount);
-
+                fcAndEphPresent = true;
 
                 //Send to FC & EPH TOPIC
-                kafkaUtils.publishToResponseTopic(outputDocString, fctopic);
-                kafkaUtils.publishToResponseTopic(outputDocString1, ephtopic);
-                // Save to DB
-                dao.saveDataInMsgEventTracker(fcTracker);
-                dao.saveDataInMsgEventTracker(ephTracker);
+                kafkaUtils.publishToResponseTopic(fcOutputDocString, fcTopic);
+                kafkaUtils.publishToResponseTopic(ephOutputDocString, ephTopic);
+
             }
 
-            List<TransactionAudit> transactionAudits = extractPacs002Transactions(document, xml, pacs002);
 
-            dao.saveAllTransactionAudits(transactionAudits);
+            Header header = new Header();
+            header.setMsgId(utilityMethods.getBizMsgIdr(document));
+            header.setSource("NIL");
+            header.setTargetFC(fcPresent);
+            header.setTargetEPH(ephPresent);
+            header.setTargetFCEPH(fcAndEphPresent);
+            header.setFlowType("Inward");
+            header.setMsgType(utilityMethods.getMsgDefIdr(document));
+            header.setOrignlReqCount(pacs002.size());
+            header.setIntermediateReqFCCount(ephCount);
+            header.setIntermediateReqEPHCount(fcCount);
+
+            Body body = new Body();
+            body.setReqPayload(xml);
+            body.setFcPayload(fcOutputDocString);
+            body.setEphPayload(ephOutputDocString);
+
+            MessageEventTracker wrapper = new MessageEventTracker();
+            wrapper.setHeader(header);
+            wrapper.setBody(body);
+
+            ObjectMapper mapper = new ObjectMapper();
+            String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(wrapper);
+            log.info("Pacs002 Inward Json : {}", json);
+
+            // Send to message-event-tracker-service topic
+            kafkaUtils.publishToResponseTopic(json, msgEventTrackerTopic);
+
 
         } catch (Exception e) {
             log.error(e.toString());
         }
     }
 
-    public List<TransactionAudit> extractPacs002Transactions(Document originalDoc, String xml, List<Pacs002Fields> pacs002Fields) throws XPathExpressionException {
-        List<TransactionAudit> listOfTransactions = new ArrayList<>();
-
-        String msgId = utilityMethods.getBizMsgIdr(originalDoc);
-        String msgType = utilityMethods.getMsgDefIdr(originalDoc);
-
-        for (Pacs002Fields pacs002 : pacs002Fields) {
-
-            TransactionAudit transaction = new TransactionAudit();
-            transaction.setMsgId(msgId);
-            transaction.setEndToEndId(pacs002.getEndToEndId());
-            transaction.setTxnId(pacs002.getTxId());
-            //transaction.setAmount(new BigDecimal(evaluateText(xpath, txNode, ".//*[local-name()='Amt']")));
-            transaction.setMsgType(msgType);
-            transaction.setSource("NIL");
-            transaction.setTarget(pacs002.getSwtch());
-            transaction.setFlowType("Inward");
-            transaction.setReqPayload(xml);
-
-            listOfTransactions.add(transaction);
-        }
-        return listOfTransactions;
-    }
 
     public Document filterTxInfAndSts(Document document, int minDigit, int maxDigit) throws Exception {
         XPath xpath = XPathFactory.newInstance().newXPath();

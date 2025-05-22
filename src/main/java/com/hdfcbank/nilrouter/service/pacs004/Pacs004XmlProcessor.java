@@ -1,10 +1,10 @@
 package com.hdfcbank.nilrouter.service.pacs004;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
-import com.hdfcbank.nilrouter.model.MsgEventTracker;
-import com.hdfcbank.nilrouter.model.Pacs004Fields;
-import com.hdfcbank.nilrouter.model.TransactionAudit;
+import com.hdfcbank.nilrouter.model.*;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,9 +15,11 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
@@ -27,6 +29,7 @@ import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
+import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.math.BigDecimal;
@@ -57,6 +60,9 @@ public class Pacs004XmlProcessor {
     @Value("${topic.ephtopic}")
     String ephTopic;
 
+    @Value("${topic.sfmstopic}")
+    private String sfmstopic;
+
     @Autowired
     Pacs004XmlOutwardprocess outwardService;
 
@@ -64,7 +70,60 @@ public class Pacs004XmlProcessor {
     public void parseXml(String xmlString) throws Exception {
 
         if (utilityMethods.isOutward(xmlString)) {
-            outwardService.processXML(xmlString);
+//            outwardService.processXML(xmlString);
+
+            String json = null;
+
+            try {
+                DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+                factory.setNamespaceAware(true);
+                DocumentBuilder builder = factory.newDocumentBuilder();
+
+                Document document = builder.parse(new InputSource(new StringReader(xmlString)));
+                Header header = new Header();
+                header.setMsgId(utilityMethods.getBizMsgIdr(document));
+                header.setSource("NIL");
+                header.setTargetFC(false);
+                header.setTargetEPH(false);
+                header.setTargetFCEPH(false);
+                header.setTargetSFMS(true);
+                header.setFlowType("Outward");
+                header.setMsgType(utilityMethods.getMsgDefIdr(document));
+
+
+                Body body = new Body();
+                body.setReqPayload(xmlString);
+                body.setFcPayload(null);
+                body.setEphPayload(null);
+
+                MessageEventTracker wrapper = new MessageEventTracker();
+                wrapper.setHeader(header);
+                wrapper.setBody(body);
+
+                ObjectMapper mapper = new ObjectMapper();
+
+                json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(wrapper);
+
+                // Send json to Message Tracker service
+
+
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            } catch (ParserConfigurationException e) {
+                throw new RuntimeException(e);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } catch (SAXException e) {
+                throw new RuntimeException(e);
+            } catch (XPathExpressionException e) {
+                throw new RuntimeException(e);
+            }
+            System.out.println(json);
+
+
+            //Send to SFMS
+//            kafkautils.publishToResponseTopic(xmlString, sfmstopic);
+
         } else {
                     processXML(xmlString);
                 }
@@ -85,7 +144,7 @@ public class Pacs004XmlProcessor {
             XPath xpath = xpathFactory.newXPath();
 
             bizMsgIdr = xpath.evaluate("/*[local-name()='RequestPayload']/*[local-name()='AppHdr']/*[local-name()='BizMsgIdr']", document);
-
+            boolean  fcPresent=false, ephPresent=false, fcAndEphPresent=false;
             boolean has0to4 = false, has5to9 = false;
             Integer ephCount = 0;
             Integer fcCount = 0;
@@ -125,11 +184,12 @@ public class Pacs004XmlProcessor {
                 }
             }
 
-
+            String outputDocString=null;
+            String outputDocString1=null;
             if (has0to4 && !has5to9) {
                 Document outputDoc = filterOrgnlItmAndSts(document, 0, 4,fcCount,consolidateAmountFC);
 
-                String outputDocString = documentToXml(document);
+                 outputDocString = documentToXml(document);
                 log.info("FC  : {}", outputDocString);
 
                 MsgEventTracker tracker = new MsgEventTracker();
@@ -143,13 +203,13 @@ public class Pacs004XmlProcessor {
                 tracker.setConsolidateAmt(BigDecimal.valueOf(consolidateAmountFC));
                 tracker.setMsgType(utilityMethods.getMsgDefIdr(document));
                 tracker.setOrgnlReq(xml);
-
+                fcPresent=true;
                 dao.saveDataInMsgEventTracker(tracker);
                 kafkautils.publishToResponseTopic(xml,fcTopic);
 
             } else if (!has0to4 && has5to9) {
                 Document outputDoc = filterOrgnlItmAndSts(document, 5, 9,ephCount,consolidateAmountEPH);
-                String outputDocString = documentToXml(outputDoc);
+                outputDocString = documentToXml(outputDoc);
                 log.info("EPH : {}", outputDocString);
 
                 MsgEventTracker tracker = new MsgEventTracker();
@@ -164,15 +224,15 @@ public class Pacs004XmlProcessor {
                 tracker.setConsolidateAmt(BigDecimal.valueOf(consolidateAmountEPH));
                 tracker.setMsgType(utilityMethods.getMsgDefIdr(document));
                 tracker.setOrgnlReq(xml);
-
+                ephPresent=true;
                 dao.saveDataInMsgEventTracker(tracker);
                 kafkautils.publishToResponseTopic(xml,ephTopic);
             } else if (has0to4 && has5to9) {
                 Document outputDoc1 = filterOrgnlItmAndSts(document, 0, 4,fcCount,consolidateAmountFC);
                 Document outputDoc2 = filterOrgnlItmAndSts(document, 5, 9,ephCount, consolidateAmountEPH);
-                String outputDocString = documentToXml(outputDoc1);
+                outputDocString = documentToXml(outputDoc1);
                 log.info("FC : {}", outputDocString);
-                String outputDocString1 = documentToXml(outputDoc2);
+                outputDocString1 = documentToXml(outputDoc2);
                 log.info("EPH : {}", outputDocString1);
 
                 MsgEventTracker fcTracker = new MsgEventTracker();
@@ -199,11 +259,42 @@ public class Pacs004XmlProcessor {
                 ephTracker.setIntermediateReq(outputDocString1);
                 ephTracker.setOrgnlReqCount(pacs004.size());
                 ephTracker.setIntermediateCount(ephCount);
-
+                fcAndEphPresent=true;
                 dao.saveDataInMsgEventTracker(fcTracker);
                 dao.saveDataInMsgEventTracker(ephTracker);
 //                kafkautils.publishToResponseTopic(outputDocString1,ephTopic);
             }
+            Header header = new Header();
+            header.setMsgId(utilityMethods.getBizMsgIdr(document));
+            header.setSource("NIL");
+            header.setTargetFC(fcPresent);
+            header.setTargetEPH(ephPresent);
+            header.setTargetFCEPH(fcAndEphPresent);
+            header.setFlowType("Inward");
+            header.setMsgType(utilityMethods.getMsgDefIdr(document));
+            //header.setBatchId("BATCH-001");
+            header.setOrignlReqCount(pacs004.size());
+            header.setConsolidateAmt(BigDecimal.valueOf(consolidateAmountEPH+consolidateAmountFC));
+            header.setConsolidateAmtEPH(BigDecimal.valueOf(consolidateAmountEPH).toString());
+            header.setConsolidateAmtFC(BigDecimal.valueOf(consolidateAmountFC).toString());
+            header.setIntermediateReqFCCount(fcCount);
+            header.setIntermediateReqEPHCount(ephCount);
+
+            Body body = new Body();
+            body.setReqPayload(xml);
+            body.setFcPayload(outputDocString);
+            body.setEphPayload(outputDocString1);
+
+            MessageEventTracker wrapper = new MessageEventTracker();
+            wrapper.setHeader(header);
+            wrapper.setBody(body);
+
+            ObjectMapper mapper = new ObjectMapper();
+            String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(wrapper);
+            System.out.println(json);
+
+
+            // Send json to Message Tracker service
 
             List<TransactionAudit> transactionAudits = extractPacs004Transactions(document, xml,pacs004);
 

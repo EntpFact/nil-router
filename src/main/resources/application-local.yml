@@ -61,6 +61,7 @@ topic:
   fctopic: FCTOPIC
   ephtopic: EPHTOPIC
   sfmstopic: SFMSTOPIC
+  msgeventtrackertopic : MSGEVENTTRACKERTOPIC
 
 cug_flag: ${CUG_FLAG:true}
 

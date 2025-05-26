@@ -9,6 +9,7 @@ import com.hdfcbank.nilrouter.model.Header;
 import com.hdfcbank.nilrouter.model.MessageEventTracker;
 import com.hdfcbank.nilrouter.service.AuditService;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.annotation.ServiceActivator;
@@ -24,15 +25,18 @@ import javax.xml.xpath.XPathExpressionException;
 import java.io.IOException;
 import java.io.StringReader;
 
-
+@Slf4j
 @Service
 public class CamtXmlProcessor {
 
     @Value("${topic.fctopic}")
-    private String fctopic;
+    private String fcTopic;
 
     @Value("${topic.ephtopic}")
-    private String ephtopic;
+    private String ephTopic;
+
+    @Value("${topic.msgeventtrackertopic}")
+    private String msgEventTrackerTopic;
 
 
     @Autowired
@@ -50,43 +54,34 @@ public class CamtXmlProcessor {
         String json = null;
 
         try {
-        //auditService.auditData(xmlString);
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        factory.setNamespaceAware(true);
-        DocumentBuilder builder = factory.newDocumentBuilder();
 
-        Document document = builder.parse(new InputSource(new StringReader(xmlString)));
-        Header header = new Header();
-        header.setMsgId(utilityMethods.getBizMsgIdr(document));
-        header.setSource("NIL");
-        header.setTargetFC(false);
-        header.setTargetEPH(false);
-        header.setTargetFCEPH(true);
-        header.setFlowType("Inward");
-        header.setMsgType(utilityMethods.getMsgDefIdr(document));
-        //header.setBatchId("BATCH-001");
-       // header.setOrignlReqCount(camt59.size());
-        //header.setConsolidateAmt("100000");
-        //header.setConsolidateAmtEPH("60000");
-        //header.setConsolidateAmtFC("40000");
-        //header.setIntermediateReqFCCount(ephCount);
-        //header.setIntermediateReqEPHCount(fcCount);
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            DocumentBuilder builder = factory.newDocumentBuilder();
 
-        Body body = new Body();
-        body.setReqPayload(xmlString);
-        body.setFcPayload(null);
-        body.setEphPayload(null);
+            Document document = builder.parse(new InputSource(new StringReader(xmlString)));
+            Header header = new Header();
+            header.setMsgId(utilityMethods.getBizMsgIdr(document));
+            header.setSource("NIL");
+            header.setTargetFC(false);
+            header.setTargetEPH(false);
+            header.setTargetFCEPH(true);
+            header.setFlowType("Inward");
+            header.setMsgType(utilityMethods.getMsgDefIdr(document));
 
-        MessageEventTracker wrapper = new MessageEventTracker();
-        wrapper.setHeader(header);
-        wrapper.setBody(body);
+            Body body = new Body();
+            body.setReqPayload(xmlString);
+            body.setFcPayload(null);
+            body.setEphPayload(null);
 
-        ObjectMapper mapper = new ObjectMapper();
+            MessageEventTracker wrapper = new MessageEventTracker();
+            wrapper.setHeader(header);
+            wrapper.setBody(body);
+
+            ObjectMapper mapper = new ObjectMapper();
 
             json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(wrapper);
 
-
-            // Send json to Message Tracker service
 
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
@@ -99,10 +94,15 @@ public class CamtXmlProcessor {
         } catch (XPathExpressionException e) {
             throw new RuntimeException(e);
         }
-        System.out.println(json);
 
-        kafkaUtils.publishToResponseTopic(xmlString, fctopic);
-        kafkaUtils.publishToResponseTopic(xmlString, ephtopic);
+        log.info("CAMT52 | CAMT54 Json : {}" ,json);
+
+        // Send to message-event-tracker-service topic
+        kafkaUtils.publishToResponseTopic(json, msgEventTrackerTopic);
+
+        // Send to FC and EPH topic
+        kafkaUtils.publishToResponseTopic(xmlString, fcTopic);
+        kafkaUtils.publishToResponseTopic(xmlString, ephTopic);
     }
 }
 

@@ -14,16 +14,16 @@ public class Header {
 
     private String msgId;
     private String source;
-    private Boolean targetFC;
-    private Boolean targetEPH;
-    private Boolean targetFCEPH;
-    private Boolean targetSFMS;
+    private boolean targetFC;
+    private boolean targetEPH;
+    private boolean targetFCEPH;
+    private boolean targetSFMS;
     private String flowType;
     private String msgType;
     private String batchId;
-    private Integer orignlReqCount;
-    private Integer intermediateReqFCCount;
-    private Integer intermediateReqEPHCount;
+    private int orignlReqCount;
+    private int intermediateReqFCCount;
+    private int intermediateReqEPHCount;
     private BigDecimal consolidateAmt;
     private BigDecimal consolidateAmtEPH;
     private BigDecimal consolidateAmtFC;

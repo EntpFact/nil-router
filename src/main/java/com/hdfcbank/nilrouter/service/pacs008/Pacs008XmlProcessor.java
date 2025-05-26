@@ -49,7 +49,7 @@ public class Pacs008XmlProcessor {
     public void parseXml(String xmlString) throws Exception {
 
         if (utilityMethods.isOutward(xmlString)) {
-            auditService.auditData(xmlString);
+            auditService.contructMsgEventTrackerJson(xmlString);
             kafkaUtils.publishToResponseTopic(xmlString, sfmstopic);
         } else {
             if (cugFlag.equalsIgnoreCase("true")) {

@@ -1,9 +1,9 @@
 package com.hdfcbank.nilrouter.service.pacs008;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
-import com.hdfcbank.nilrouter.model.MsgEventTracker;
-import com.hdfcbank.nilrouter.model.TransactionAudit;
+import com.hdfcbank.nilrouter.model.*;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -50,6 +50,9 @@ public class InwardService {
     @Autowired
     private UtilityMethods utilityMethods;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
     public void processFreshInward(String xmlPayload) throws Exception {
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         dbFactory.setNamespaceAware(true);
@@ -60,61 +63,92 @@ public class InwardService {
         XPath xpath = XPathFactory.newInstance().newXPath();
         String msgId = utilityMethods.getBizMsgIdr(originalDoc);
         String msgType = utilityMethods.getMsgDefIdr(originalDoc);
-        BigDecimal totalAmount =utilityMethods.getTotalAmount(originalDoc);
+        BigDecimal totalAmount = utilityMethods.getTotalAmount(originalDoc);
         NodeList txNodes = (NodeList) xpath.evaluate("//*[local-name()='CdtTrfTxInf']", originalDoc, XPathConstants.NODESET);
         List<TransactionAudit> listOfTransactions = new ArrayList<>();
 
         String substring = msgId.substring(4);
         BigInteger numericMsgId = new BigInteger(substring);
         int mod = numericMsgId.mod(BigInteger.valueOf(10)).intValue();
-        String target = "";
+        boolean fcPresent = false;
+        boolean ephPresent = false;
         if (mod >= 0 && mod <= 4) {
-            target = "FC";
+            fcPresent = true;
         } else if (mod >= 5 && mod <= 9) {
-            target = "EPH";
+            ephPresent = true;
         }
 
-        MsgEventTracker tracker = new MsgEventTracker();
-        tracker.setMsgId(msgId);
-        tracker.setSource("NIL");
-        tracker.setTarget(target);
-        tracker.setFlowType("inward");
-        tracker.setMsgType(msgType);
-        tracker.setOrgnlReq(xmlPayload);
-        tracker.setConsolidateAmt(totalAmount);
-        tracker.setOrgnlReqCount(txNodes.getLength());
+//        MsgEventTracker tracker = new MsgEventTracker();
+//        tracker.setMsgId(msgId);
+//        tracker.setSource("NIL");
+//        tracker.setTarget(target);
+//        tracker.setFlowType("inward");
+//        tracker.setMsgType(msgType);
+//        tracker.setOrgnlReq(xmlPayload);
+//        tracker.setConsolidateAmt(totalAmount);
+//        tracker.setOrgnlReqCount(txNodes.getLength());
 
 
+//
+//        for (int i = 0; i < txNodes.getLength(); i++) {
+//            Node txNode = txNodes.item(i);
+//
+//            TransactionAudit transaction = new TransactionAudit();
+//            transaction.setMsgId(msgId);
+//            transaction.setEndToEndId(utilityMethods.evaluateText(xpath, txNode, ".//*[local-name()='EndToEndId']"));
+//            transaction.setTxnId(utilityMethods.evaluateText(xpath, txNode, ".//*[local-name()='TxId']"));
+//            transaction.setAmount(new BigDecimal(utilityMethods.evaluateText(xpath, txNode, ".//*[local-name()='IntrBkSttlmAmt']")));
+//            transaction.setBatchId(utilityMethods.evaluateText(xpath, txNode, ".//*[local-name()='RmtInf']//*[local-name()='Ustrd']"));
+//            transaction.setSource("NIL");
+//            transaction.setTarget(target);
+//            transaction.setFlowType("inward");
+//            transaction.setMsgType(msgType);
+//            transaction.setReqPayload(xmlPayload);
+//
+//            listOfTransactions.add(transaction);
+//
+//        }
 
-        for (int i = 0; i < txNodes.getLength(); i++) {
-            Node txNode = txNodes.item(i);
+//        nilRepository.saveDataInMsgEventTracker(tracker);
+//
+//        nilRepository.saveAllTransactionAudits(listOfTransactions);
 
-            TransactionAudit transaction = new TransactionAudit();
-            transaction.setMsgId(msgId);
-            transaction.setEndToEndId(utilityMethods.evaluateText(xpath, txNode, ".//*[local-name()='EndToEndId']"));
-            transaction.setTxnId(utilityMethods.evaluateText(xpath, txNode, ".//*[local-name()='TxId']"));
-            transaction.setAmount(new BigDecimal(utilityMethods.evaluateText(xpath, txNode, ".//*[local-name()='IntrBkSttlmAmt']")));
-            transaction.setBatchId(utilityMethods.evaluateText(xpath, txNode, ".//*[local-name()='RmtInf']//*[local-name()='Ustrd']"));
-            transaction.setSource("NIL");
-            transaction.setTarget(target);
-            transaction.setFlowType("inward");
-            transaction.setMsgType(msgType);
-            transaction.setReqPayload(xmlPayload);
+        MessageEventTracker messageEventTracker = new MessageEventTracker();
 
-            listOfTransactions.add(transaction);
+        Body body = new Body();
+        body.setReqPayload(xmlPayload);
 
-        }
+        Header header = new Header();
 
-        nilRepository.saveDataInMsgEventTracker(tracker);
-
-        nilRepository.saveAllTransactionAudits(listOfTransactions);
-
-        if (target.equalsIgnoreCase("FC")) {
-            kafkaUtils.publishToResponseTopic(xmlPayload, fctopic);
+        header.setMsgId(msgId);
+        header.setMsgType(msgType);
+        header.setSource("NIL");
+        header.setTargetEPH(ephPresent);
+        header.setTargetFC(fcPresent);
+        header.setFlowType("Inward");
+        header.setConsolidateAmt(totalAmount);
+        header.setOrignlReqCount(txNodes.getLength());
+        if (fcPresent) {
+            header.setConsolidateAmtFC(totalAmount);
+            header.setIntermediateReqFCCount(txNodes.getLength());
+            body.setFcPayload(xmlPayload);
         } else {
-            kafkaUtils.publishToResponseTopic(xmlPayload, ephtopic);
-
+            header.setConsolidateAmtEPH(totalAmount);
+            header.setIntermediateReqEPHCount(txNodes.getLength());
+            body.setEphPayload(xmlPayload);
         }
+        messageEventTracker.setHeader(header);
+        messageEventTracker.setBody(body);
+
+        String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
+
+
+//        if (target.equalsIgnoreCase("FC")) {
+//            kafkaUtils.publishToResponseTopic(xmlPayload, fctopic);
+//        } else {
+//            kafkaUtils.publishToResponseTopic(xmlPayload, ephtopic);
+//
+//        }
 
 
     }
@@ -128,49 +162,68 @@ public class InwardService {
         originalDoc.getDocumentElement().normalize();
 
         XPath xpath = XPathFactory.newInstance().newXPath();
-        String msgId = utilityMethods.getBizMsgIdr(originalDoc);
-        String msgType = utilityMethods.getMsgDefIdr(originalDoc);
+
         NodeList txNodes = (NodeList) xpath.evaluate("//*[local-name()='CdtTrfTxInf']", originalDoc, XPathConstants.NODESET);
 
         List<Node> Fc = new ArrayList<>();
         List<Node> EPH = new ArrayList<>();
         List<Node> freshTxns = new ArrayList<>();
-        List<TransactionAudit> listOfTransactions = new ArrayList<>();
+//        List<TransactionAudit> listOfTransactions = new ArrayList<>();
+        BigDecimal fcTotal = BigDecimal.valueOf(0);
+        BigDecimal ephTotal = BigDecimal.valueOf(0);
+        BigDecimal freshTotal = BigDecimal.valueOf(0);
+
+
+        MessageEventTracker messageEventTracker = new MessageEventTracker();
+
+        Body body = new Body();
+        body.setReqPayload(xmlPayload);
+
+        Header header = new Header();
+        header.setMsgType(utilityMethods.getMsgDefIdr(originalDoc));
+        header.setMsgId(utilityMethods.getBizMsgIdr(originalDoc));
+        header.setSource("NIL");
+        header.setFlowType("Inward");
+        header.setOrignlReqCount(txNodes.getLength());
+        header.setConsolidateAmt(utilityMethods.getTotalAmount(originalDoc));
 
 
         for (int i = 0; i < txNodes.getLength(); i++) {
             Node tx = txNodes.item(i);
             String id = extractTransactionIdentifier(tx, xpath);
 
-            TransactionAudit transaction = new TransactionAudit();
-            transaction.setMsgId(msgId);
-            transaction.setEndToEndId(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='EndToEndId']"));
-            transaction.setTxnId(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='TxId']"));
-            transaction.setAmount(new BigDecimal(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='IntrBkSttlmAmt']")));
-            transaction.setBatchId(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='RmtInf']//*[local-name()='Ustrd']"));
-            transaction.setSource("NIL");
-            transaction.setFlowType("inward");
-            transaction.setMsgType(msgType);
-            transaction.setReqPayload(xmlPayload);
+//            TransactionAudit transaction = new TransactionAudit();
+//            transaction.setMsgId(msgId);
+//            transaction.setEndToEndId(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='EndToEndId']"));
+//            transaction.setTxnId(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='TxId']"));
+//            transaction.setAmount(new BigDecimal(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='IntrBkSttlmAmt']")));
+//            transaction.setBatchId(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='RmtInf']//*[local-name()='Ustrd']"));
+//            transaction.setSource("NIL");
+//            transaction.setFlowType("inward");
+//            transaction.setMsgType(msgType);
+//            transaction.setReqPayload(xmlPayload);
 
 
             if (id == null) {
                 freshTxns.add(tx); //  No valid txnId → goes to freshTransactions
-                transaction.setTarget("Fresh");
+//                transaction.setTarget("Fresh");
+                freshTotal=freshTotal.add(new BigDecimal(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='IntrBkSttlmAmt']")));
             } else {
                 char ch = id.charAt(14);
 
                 if (ch >= '0' && ch <= '4') {
                     Fc.add(tx);
-                    transaction.setTarget("FC");
+//                    transaction.setTarget("FC");
+                    fcTotal=fcTotal.add(new BigDecimal(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='IntrBkSttlmAmt']")));
                 } else if (ch >= '5' && ch <= '9') {
                     EPH.add(tx);
-                    transaction.setTarget("EPH");
+//                    transaction.setTarget("EPH");
+                    ephTotal=ephTotal.add(new BigDecimal(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='IntrBkSttlmAmt']")));
 
                 }
             }
 
-            listOfTransactions.add(transaction);
+//            listOfTransactions.add(transaction);
 
         }
 
@@ -182,81 +235,114 @@ public class InwardService {
         boolean hasEPH = !EPH.isEmpty();
         boolean hasFresh = !freshTxns.isEmpty();
 
+        header.setTargetFC(hasFC);
+        header.setTargetEPH(hasEPH);
+        if (hasFC && hasEPH) {
+            header.setTargetFCEPH(true);
+        }
+
         if (hasFC && !hasEPH && !hasFresh) {
 
-            fcXml = buildAndAudit(xmlPayload, msgId, msgType, Fc, listOfTransactions, "FC", dBuilder, originalDoc);
-
+            fcXml = buildNewXml(originalDoc, dBuilder, Fc);
+            header.setIntermediateReqFCCount(Fc.size());
+            header.setConsolidateAmtFC(fcTotal);
+            body.setFcPayload(fcXml);
 
         } else if (hasFC && !hasEPH && hasFresh) {
 
-            List<Node> combined = combine(Fc, freshTxns);
-            updateTargets(listOfTransactions, "Fresh", "FC");
-            fcXml = buildAndAudit(xmlPayload, msgId, msgType, combined, listOfTransactions, "FC", dBuilder, originalDoc);
+//            List<Node> combined = combine(Fc, freshTxns);
+            Fc.addAll(freshTxns);
+            fcTotal=fcTotal.add(freshTotal);
+//            updateTargets(listOfTransactions, "Fresh", "FC");
+            fcXml = buildNewXml(originalDoc, dBuilder, Fc);
+            header.setIntermediateReqFCCount(Fc.size());
+            header.setConsolidateAmtFC(fcTotal);
+            body.setFcPayload(fcXml);
 
 
         } else if (!hasFC && hasEPH && !hasFresh) {
 
-            ephXml = buildAndAudit(xmlPayload, msgId, msgType,EPH, listOfTransactions, "EPH", dBuilder, originalDoc);
-
+            ephXml = buildNewXml(originalDoc, dBuilder, EPH);
+            header.setIntermediateReqEPHCount(EPH.size());
+            header.setConsolidateAmtEPH(ephTotal);
+            body.setEphPayload(ephXml);
 
         } else if (!hasFC && hasEPH && hasFresh) {
 
-            List<Node> combined = combine(EPH, freshTxns);
-            updateTargets(listOfTransactions, "Fresh", "EPH");
-            ephXml = buildAndAudit(xmlPayload, msgId, msgType, combined, listOfTransactions, "EPH", dBuilder, originalDoc);
-
+//            List<Node> combined = combine(EPH, freshTxns);
+            EPH.addAll(freshTxns);
+            ephTotal=ephTotal.add(freshTotal);
+//            updateTargets(listOfTransactions, "Fresh", "EPH");
+            ephXml = buildNewXml(originalDoc, dBuilder, EPH);
+            header.setIntermediateReqEPHCount(EPH.size());
+            header.setConsolidateAmtEPH(ephTotal);
+            body.setEphPayload(ephXml);
 
         } else if (hasFC) {
 
-            fcXml = buildAndAudit(xmlPayload, msgId, msgType,Fc, listOfTransactions, "FC", dBuilder, originalDoc);
-            List<Node> ephCombined = combine(EPH, freshTxns);
-            updateTargets(listOfTransactions, "Fresh", "EPH");
-            ephXml = buildAndAudit(xmlPayload, msgId, msgType, ephCombined, listOfTransactions, "EPH", dBuilder, originalDoc);
+            fcXml = buildNewXml(originalDoc, dBuilder, Fc);
+            header.setIntermediateReqFCCount(Fc.size());
+            header.setConsolidateAmtFC(fcTotal);
+//            List<Node> ephCombined = combine(EPH, freshTxns);
+            body.setFcPayload(fcXml);
+            EPH.addAll(freshTxns);
+            ephTotal=ephTotal.add(freshTotal);
+//            updateTargets(listOfTransactions, "Fresh", "EPH");
+            ephXml = buildNewXml(originalDoc, dBuilder, EPH);
+            header.setIntermediateReqEPHCount(EPH.size());
+            header.setConsolidateAmtEPH(ephTotal);
+            body.setEphPayload(ephXml);
 
         }
 
-        if (fcXml != null) {
-            kafkaUtils.publishToResponseTopic(fcXml, fctopic);
-        }
-        if (ephXml != null) {
-            kafkaUtils.publishToResponseTopic(ephXml, ephtopic);
-        }
+        messageEventTracker.setHeader(header);
+        messageEventTracker.setBody(body);
+
+        String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
 
 
-        nilRepository.saveAllTransactionAudits(listOfTransactions);
+//        if (fcXml != null) {
+//            kafkaUtils.publishToResponseTopic(fcXml, fctopic);
+//        }
+//        if (ephXml != null) {
+//            kafkaUtils.publishToResponseTopic(ephXml, ephtopic);
+//        }
+
+
+//        nilRepository.saveAllTransactionAudits(listOfTransactions);
 
     }
 
-    private String buildAndAudit(String xmlPayload, String msgId, String msgType, List<Node> txList, List<TransactionAudit> allTxns, String target, DocumentBuilder dBuilder, Document originalDoc) throws Exception {
-        String intermediateXml = buildNewXml(originalDoc, dBuilder, txList);
-        int count = (int) allTxns.stream().filter(t -> target.equals(t.getTarget())).count();
-        BigDecimal total = allTxns.stream().filter(t -> target.equals(t.getTarget())).map(TransactionAudit::getAmount).filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+//    private String buildAndAudit(String xmlPayload, String msgId, String msgType, List<Node> txList, List<TransactionAudit> allTxns, String target, DocumentBuilder dBuilder, Document originalDoc) throws Exception {
+//        String intermediateXml = buildNewXml(originalDoc, dBuilder, txList);
+//        int count = (int) allTxns.stream().filter(t -> target.equals(t.getTarget())).count();
+//        BigDecimal total = allTxns.stream().filter(t -> target.equals(t.getTarget())).map(TransactionAudit::getAmount).filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+//
+//        MsgEventTracker tracker = new MsgEventTracker();
+//        tracker.setMsgId(msgId);
+//        tracker.setSource("NIL");
+//        tracker.setTarget(target);
+//        tracker.setFlowType("inward");
+//        tracker.setMsgType(msgType);
+//        tracker.setOrgnlReq(xmlPayload);
+//        tracker.setIntermediateReq(intermediateXml);
+//        tracker.setOrgnlReqCount(allTxns.size());
+//        tracker.setIntermediateCount(count);
+//        tracker.setConsolidateAmt(total);
+//
+//        nilRepository.saveDataInMsgEventTracker(tracker);
+//        return intermediateXml;
+//    }
 
-        MsgEventTracker tracker = new MsgEventTracker();
-        tracker.setMsgId(msgId);
-        tracker.setSource("NIL");
-        tracker.setTarget(target);
-        tracker.setFlowType("inward");
-        tracker.setMsgType(msgType);
-        tracker.setOrgnlReq(xmlPayload);
-        tracker.setIntermediateReq(intermediateXml);
-        tracker.setOrgnlReqCount(allTxns.size());
-        tracker.setIntermediateCount(count);
-        tracker.setConsolidateAmt(total);
-
-        nilRepository.saveDataInMsgEventTracker(tracker);
-        return intermediateXml;
-    }
-
-    private void updateTargets(List<TransactionAudit> transactions, String from, String to) {
-        transactions.stream().filter(t -> from.equalsIgnoreCase(t.getTarget())).forEach(t -> t.setTarget(to));
-    }
-
-    private List<Node> combine(List<Node> a, List<Node> b) {
-        List<Node> combined = new ArrayList<>(a);
-        combined.addAll(b);
-        return combined;
-    }
+//    private void updateTargets(List<TransactionAudit> transactions, String from, String to) {
+//        transactions.stream().filter(t -> from.equalsIgnoreCase(t.getTarget())).forEach(t -> t.setTarget(to));
+//    }
+//
+//    private List<Node> combine(List<Node> a, List<Node> b) {
+//        List<Node> combined = new ArrayList<>(a);
+//        combined.addAll(b);
+//        return combined;
+//    }
 
 
     private String extractTransactionIdentifier(Node tx, XPath xpath) throws XPathExpressionException {
@@ -295,8 +381,6 @@ public class InwardService {
 
         return null; // No valid ID found
     }
-
-
 
 
     private String buildNewXml(Document originalDoc, DocumentBuilder dBuilder, List<Node> txNodes) throws Exception {

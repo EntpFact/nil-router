@@ -1,9 +1,10 @@
 package com.hdfcbank.nilrouter.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hdfcbank.nilrouter.config.MessageXPathConfig;
 import com.hdfcbank.nilrouter.dao.NilRepository;
-import com.hdfcbank.nilrouter.model.MsgEventTracker;
-import com.hdfcbank.nilrouter.model.TransactionAudit;
+import com.hdfcbank.nilrouter.model.*;
+import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -37,7 +38,13 @@ public class AuditService {
     }
 
     @Autowired
-    NilRepository nilRepository;
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private NilRepository nilRepository;
+
+    @Autowired
+    private UtilityMethods utilityMethods;
 
     public void auditData(String xmlPayload) {
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
@@ -131,6 +138,42 @@ public class AuditService {
         } catch (SAXException e) {
             log.error(e.toString());
         }
+    }
+
+
+    public void contructMsgEventTrackerJson(String xmlPayload) throws Exception
+    {
+        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+        dbFactory.setNamespaceAware(true);
+        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+        Document originalDoc = dBuilder.parse(new InputSource(new StringReader(xmlPayload)));
+        originalDoc.getDocumentElement().normalize();
+
+        XPath xpath = XPathFactory.newInstance().newXPath();
+        NodeList txNodes = (NodeList) xpath.evaluate("//*[local-name()='CdtTrfTxInf']", originalDoc, XPathConstants.NODESET);
+
+
+        MessageEventTracker msgEvtTracker=new MessageEventTracker();
+        Header header=new Header();
+        Body body=new Body();
+        header.setMsgId(utilityMethods.getBizMsgIdr(originalDoc));
+        header.setSource("NIL");
+        header.setMsgType(utilityMethods.getMsgDefIdr(originalDoc));
+        header.setBatchId("Batch 10");
+        header.setConsolidateAmt(utilityMethods.getTotalAmount(originalDoc));
+        header.setFlowType("Outward");
+        header.setTargetSFMS(true);
+        header.setOrignlReqCount(txNodes.getLength());
+
+        body.setReqPayload(xmlPayload);
+
+        msgEvtTracker.setBody(body);
+        msgEvtTracker.setHeader(header);
+
+       String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(msgEvtTracker);
+
+
+
     }
 
     private String evaluateText(XPath xpath, Node node, String expression) {

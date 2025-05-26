@@ -1,9 +1,9 @@
 package com.hdfcbank.nilrouter.service.pacs008;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
-import com.hdfcbank.nilrouter.model.MsgEventTracker;
-import com.hdfcbank.nilrouter.model.TransactionAudit;
+import com.hdfcbank.nilrouter.model.*;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,6 +52,9 @@ public class CugApproach {
     @Autowired
     private NilRepository nilRepository;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
     public void processCugApproach(String xmlPayload) throws Exception {
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         dbFactory.setNamespaceAware(true);
@@ -63,50 +66,95 @@ public class CugApproach {
         NodeList txNodes = (NodeList) xpath.evaluate("//*[local-name()='CdtTrfTxInf']", originalDoc, XPathConstants.NODESET);
         String msgId = utilityMethods.getBizMsgIdr(originalDoc);
         String msgType = utilityMethods.getMsgDefIdr(originalDoc);
+        BigDecimal totalAmount = utilityMethods.getTotalAmount(originalDoc);
+
 
         List<Node> Fc = new ArrayList<>();
         List<Node> EPH = new ArrayList<>();
-        List<TransactionAudit> listOfTransactions = new ArrayList<>();
+//        List<TransactionAudit> listOfTransactions = new ArrayList<>();
         String fcXml = null;
         String ephXml = null;
+        boolean fcPresent = false;
+        boolean ephPresent = false;
+        BigDecimal fcTotal = BigDecimal.valueOf(0);
+        BigDecimal ephTotal = BigDecimal.valueOf(0);
 
         for (int i = 0; i < txNodes.getLength(); i++) {
             Node tx = txNodes.item(i);
 
-            TransactionAudit transaction = new TransactionAudit();
-            transaction.setMsgId(msgId);
-            transaction.setEndToEndId(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='EndToEndId']"));
-            transaction.setTxnId(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='TxId']"));
-            transaction.setAmount(new BigDecimal(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='IntrBkSttlmAmt']")));
-            transaction.setBatchId(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='RmtInf']//*[local-name()='Ustrd']"));
-            transaction.setSource("NIL");
-            transaction.setFlowType("inward");
-            transaction.setMsgType(msgType);
-            transaction.setReqPayload(xmlPayload);
+//            TransactionAudit transaction = new TransactionAudit();
+//            transaction.setMsgId(msgId);
+//            transaction.setEndToEndId(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='EndToEndId']"));
+//            transaction.setTxnId(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='TxId']"));
+//            transaction.setAmount(new BigDecimal(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='IntrBkSttlmAmt']")));
+//            transaction.setBatchId(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='RmtInf']//*[local-name()='Ustrd']"));
+//            transaction.setSource("NIL");
+//            transaction.setFlowType("inward");
+//            transaction.setMsgType(msgType);
+//            transaction.setReqPayload(xmlPayload);
 
             if (isValidCugAccount(tx)) {
                 EPH.add(tx);
-                transaction.setTarget("EPH");
+                ephPresent = true;
+                ephTotal = ephTotal.add(new BigDecimal(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='IntrBkSttlmAmt']")));
             } else {
                 Fc.add(tx);
-                transaction.setTarget("FC");
+                fcPresent = true;
+                fcTotal = fcTotal.add(new BigDecimal(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='IntrBkSttlmAmt']")));
+
             }
+
+//            listOfTransactions.add(transaction);
         }
 
-        if (!Fc.isEmpty()) {
-            fcXml = buildAndAudit(xmlPayload, msgId, msgType, Fc, listOfTransactions, "FC", dBuilder, originalDoc);
-        }
-        if (!EPH.isEmpty()) {
-            ephXml = buildAndAudit(xmlPayload, msgId, msgType, EPH, listOfTransactions, "EPH", dBuilder, originalDoc);
+        MessageEventTracker messageEventTracker = new MessageEventTracker();
 
+        Body body = new Body();
+        body.setReqPayload(xmlPayload);
+
+        Header header = new Header();
+
+        header.setMsgId(msgId);
+        header.setMsgType(msgType);
+        header.setSource("NIL");
+        header.setTargetEPH(ephPresent);
+        header.setTargetFC(fcPresent);
+        header.setFlowType("Inward");
+        header.setConsolidateAmt(totalAmount);
+        header.setOrignlReqCount(txNodes.getLength());
+        header.setIntermediateReqFCCount(Fc.size());
+        header.setIntermediateReqEPHCount(EPH.size());
+        header.setConsolidateAmtFC(fcTotal);
+        header.setConsolidateAmtEPH(ephTotal);
+
+
+
+        if (fcPresent) {
+            fcXml = buildNewXml(originalDoc,dBuilder, Fc);
+            body.setFcPayload(fcXml);
+        }
+        if (ephPresent) {
+            ephXml = buildNewXml(originalDoc,dBuilder, EPH);
+            body.setEphPayload(ephXml);
         }
 
-        if (fcXml != null) {
-            kafkaUtils.publishToResponseTopic(fcXml, fctopic);
+        if(fcPresent && ephPresent)
+        {
+            header.setTargetFCEPH(true);
         }
-        if (ephXml != null) {
-            kafkaUtils.publishToResponseTopic(ephXml, ephtopic);
-        }
+
+        messageEventTracker.setHeader(header);
+        messageEventTracker.setBody(body);
+
+        String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
+
+
+//        if (fcXml != null) {
+//            kafkaUtils.publishToResponseTopic(fcXml, fctopic);
+//        }
+//        if (ephXml != null) {
+//            kafkaUtils.publishToResponseTopic(ephXml, ephtopic);
+//        }
 
     }
 
@@ -118,26 +166,27 @@ public class CugApproach {
 
     }
 
-    private String buildAndAudit(String xmlPayload, String msgId, String msgType, List<Node> txList, List<TransactionAudit> allTxns, String target, DocumentBuilder dBuilder, Document originalDoc) throws Exception {
-        String intermediateXml = buildNewXml(originalDoc, dBuilder, txList);
-        int count = (int) allTxns.stream().filter(t -> target.equals(t.getTarget())).count();
-        BigDecimal total = allTxns.stream().filter(t -> target.equals(t.getTarget())).map(TransactionAudit::getAmount).filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        MsgEventTracker tracker = new MsgEventTracker();
-        tracker.setMsgId(msgId);
-        tracker.setSource("NIL");
-        tracker.setTarget(target);
-        tracker.setFlowType("inward");
-        tracker.setMsgType(msgType);
-        tracker.setOrgnlReq(xmlPayload);
-        tracker.setIntermediateReq(intermediateXml);
-        tracker.setOrgnlReqCount(allTxns.size());
-        tracker.setIntermediateCount(count);
-        tracker.setConsolidateAmt(total);
-
-        nilRepository.saveDataInMsgEventTracker(tracker);
-        return intermediateXml;
-    }
+//    private String buildAndAudit(String xmlPayload, List<Node> txList, List<TransactionAudit> allTxns, String target, DocumentBuilder dBuilder, Document originalDoc, Header header, Body body) throws Exception {
+//        String intermediateXml = buildNewXml(originalDoc, dBuilder, txList);
+//        int count = (int) allTxns.stream().filter(t -> target.equals(t.getTarget())).count();
+//        BigDecimal total = allTxns.stream().filter(t -> target.equals(t.getTarget())).map(TransactionAudit::getAmount).filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+//
+////        MsgEventTracker tracker = new MsgEventTracker();
+////        tracker.setMsgId(msgId);
+////        tracker.setSource("NIL");
+////        tracker.setTarget(target);
+////        tracker.setFlowType("inward");
+////        tracker.setMsgType(msgType);
+////        tracker.setOrgnlReq(xmlPayload);
+////        tracker.setIntermediateReq(intermediateXml);
+////        tracker.setOrgnlReqCount(allTxns.size());
+////        tracker.setIntermediateCount(count);
+////        tracker.setConsolidateAmt(total);
+////
+////        nilRepository.saveDataInMsgEventTracker(tracker);
+//
+//        return intermediateXml;
+//    }
 
     private String buildNewXml(Document originalDoc, DocumentBuilder dBuilder, List<Node> txNodes) throws Exception {
         Document newDoc = dBuilder.newDocument();

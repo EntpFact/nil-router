@@ -70,7 +70,7 @@ public class Pacs004XmlProcessor {
     public void parseXml(String xmlString) throws Exception {
 
         if (utilityMethods.isOutward(xmlString)) {
-//            outwardService.processXML(xmlString);
+            outwardService.processXML(xmlString);
 
             String json = null;
 
@@ -122,7 +122,7 @@ public class Pacs004XmlProcessor {
 
 
             //Send to SFMS
-//            kafkautils.publishToResponseTopic(xmlString, sfmstopic);
+            kafkautils.publishToResponseTopic(xmlString, sfmstopic);
 
         } else {
                     processXML(xmlString);
@@ -161,13 +161,14 @@ public class Pacs004XmlProcessor {
                 String amount =xpath.evaluate("./*[local-name()='RtrdIntrBkSttlmAmt']", orgnlItmAndSts);
 
                 NodeList batchIdList=(NodeList)xpath.evaluate(".//*[local-name()='OrgnlTxRef']/*[local-name()='UndrlygCstmrCdtTrf']//*[local-name()='RmtInf']",  orgnlItmAndSts,XPathConstants.NODE);
+               if(batchIdList!=null){
                 for(int j=0;j<batchIdList.getLength();j++){
                     String batchId=(batchIdList.item(j)).getTextContent();
                     if(batchId.contains("BatchId")){
                          batchIdValue=batchId;
                     }
 
-                }
+                }}
                 int digit = extractEndToEndIdDigit(orgnlItmId);
 
 
@@ -246,7 +247,7 @@ public class Pacs004XmlProcessor {
                 fcTracker.setIntermediateReq(outputDocString);
                 fcTracker.setOrgnlReqCount(pacs004.size());
                 fcTracker.setIntermediateCount(fcCount);
-//                kafkautils.publishToResponseTopic(outputDocString,fcTopic);
+                kafkautils.publishToResponseTopic(outputDocString,fcTopic);
 
                 MsgEventTracker ephTracker = new MsgEventTracker();
                 ephTracker.setMsgId(utilityMethods.getBizMsgIdr(document));
@@ -262,7 +263,7 @@ public class Pacs004XmlProcessor {
                 fcAndEphPresent=true;
                 dao.saveDataInMsgEventTracker(fcTracker);
                 dao.saveDataInMsgEventTracker(ephTracker);
-//                kafkautils.publishToResponseTopic(outputDocString1,ephTopic);
+                kafkautils.publishToResponseTopic(outputDocString1,ephTopic);
             }
             Header header = new Header();
             header.setMsgId(utilityMethods.getBizMsgIdr(document));
@@ -272,7 +273,7 @@ public class Pacs004XmlProcessor {
             header.setTargetFCEPH(fcAndEphPresent);
             header.setFlowType("Inward");
             header.setMsgType(utilityMethods.getMsgDefIdr(document));
-            //header.setBatchId("BATCH-001");
+            header.setBatchId(!pacs004.isEmpty() ? pacs004.get(0).getBatchId() : null);
             header.setOrignlReqCount(pacs004.size());
             header.setConsolidateAmt(BigDecimal.valueOf(consolidateAmountEPH+consolidateAmountFC));
             header.setConsolidateAmtEPH(BigDecimal.valueOf(consolidateAmountEPH).toString());
@@ -384,19 +385,13 @@ public class Pacs004XmlProcessor {
 
             for (int i = 0; i < txInf.getLength(); i++) {
                 Element orgnlNtfctnRef = (Element) txInf.item(i);
-//                NodeList itmAndStsList = (NodeList) xpath.evaluate(".//*[local-name()='OrgnlItmAndSts']", orgnlNtfctnRef, XPathConstants.NODESET);
-
-//                for (int j = 0; j < itmAndStsList.getLength(); j++) {
-//                    Element orgnlItmAndSts = (Element) itmAndStsList.item(j);
                     String orgnlTxId = xpath.evaluate("./*[local-name()='OrgnlTxId']", orgnlNtfctnRef);
 
                     int digit = extractEndToEndIdDigit(orgnlTxId);
                     if (digit >= minDigit && digit <= maxDigit) {
-//                        newTxInfSts.appendChild(newDoc.importNode(orgnlNtfctnRef, true));
                         newTxInf.appendChild(newDoc.importNode(orgnlNtfctnRef, true));
                         hasValidEntries = true;
                     }
-//                }
             }
 
             if (hasValidEntries) {

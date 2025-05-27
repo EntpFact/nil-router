@@ -147,31 +147,6 @@ public class ProcessController {
     }
 
 
-        @CrossOrigin
-        @PostMapping("/outProcess")
-        public Mono<ResponseEntity<Response>> outProcess(@RequestBody String request) throws JsonProcessingException {
-
-            log.info("....Processing Started.... ");
-
-            return Mono.fromCallable(() -> {
-                Map<String, String> payloadMap = new HashMap<>();
-                try {
-                    String xmlMessage = request;
-                    //log.info("Request data--{}", xmlMessage);
-                    routingChannel.send(MessageBuilder.withPayload(request).build());
-
-                    return ResponseEntity.ok(new Response("SUCCESS", "Message Processed."));
-                } catch (Exception ex) {
-                    log.error("Failed in consuming the message: {}", ex);
-
-                    throw new NILException("Failed in consuming the message", ex);
-                } finally {
-                    log.info("....Processing Completed.... ");
-                }
-            }).onErrorResume(ex -> {
-                return Mono.just(new ResponseEntity<>(new Response("ERROR", "Message Processing Failed"), HttpStatus.INTERNAL_SERVER_ERROR));
-            });
-        }
 
 
 }

@@ -113,7 +113,6 @@ public class Pacs004XmlOutwardprocess {
             String outputDocString = documentToXml(document);
             log.info("SFMS  : {}", outputDocString);
 
-          //  kafkautils.publishToResponseTopic(xml,sfmstopic);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -157,27 +156,5 @@ public class Pacs004XmlOutwardprocess {
         return writer.toString();
     }
 
-
-    private static Element createElementNS(Document doc, String localName) {
-        final String PACS_NS = "urn:iso:std:iso:20022:tech:xsd:pacs.004.001.10";
-        return doc.createElementNS(PACS_NS, localName);
-    }
-
-    private static int extractEndToEndIdDigit(String endToEndId) {
-      /*  Pattern pattern = Pattern.compile("/XUTR/HDFCH(\\d{9})");
-        Matcher matcher = pattern.matcher(endToEndId);
-
-        if (matcher.find()) {
-            return Character.getNumericValue(matcher.group(1).charAt(0));
-        }*/
-
-        Pattern pattern = Pattern.compile("^.{14}(.)"); // 14 characters, then capture the 15th
-        Matcher matcher = pattern.matcher(endToEndId);
-
-        if (matcher.find()) {
-            return Character.getNumericValue(matcher.group(1).charAt(0));
-        }
-        return -1;
-    }
 
 }

@@ -31,8 +31,14 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'
 
+	implementation 'org.springframework.boot:spring-boot-starter-webflux'
+	testImplementation 'org.apache.camel:camel-test-spring-junit5:4.8.0'
+
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+	testLogging {
+		events "started", "passed", "skipped", "failed"
+	}
 }

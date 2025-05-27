@@ -18,7 +18,7 @@ import java.util.List;
 public class NilRepository {
 
     @Autowired
-    private NamedParameterJdbcTemplate namedParameterJdbcTemplate;
+    NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
     public void saveDataInMsgEventTracker(MsgEventTracker msgEventTracker) {
         String sql = "INSERT INTO network_il.msg_event_tracker (msg_id, source, target, flow_type, msg_type, original_req, original_req_count, consolidate_amt, intermediate_req, intemdiate_count, status, created_time, modified_timestamp) " +

@@ -20,6 +20,23 @@ public class NilRepository {
     @Autowired
     NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
+
+    public String findTargetByTxnId(String txnId) {
+        String sql = "SELECT target FROM network_il.transaction_audit WHERE txn_id = :txnId";
+
+        MapSqlParameterSource params = new MapSqlParameterSource();
+        params.addValue("txnId", txnId);
+
+        try {
+            return namedParameterJdbcTemplate.queryForObject(sql, params, String.class);
+        } catch (Exception e) {
+            // log and return null or handle accordingly
+            return null;
+        }
+
+    }
+
+
     public void saveDataInMsgEventTracker(MsgEventTracker msgEventTracker) {
         String sql = "INSERT INTO network_il.msg_event_tracker (msg_id, source, target, flow_type, msg_type, original_req, original_req_count, consolidate_amt, intermediate_req, intemdiate_count, status, created_time, modified_timestamp) " +
                 "VALUES (:msg_id, :source, :target, :flow_type, :msg_type, (XMLPARSE(CONTENT :original_req)), :original_req_count, :consolidate_amt, XMLPARSE(CONTENT :intermediate_req), :intemdiate_count, :status, :created_time, :modified_timestamp )";
@@ -76,6 +93,17 @@ public class NilRepository {
                 .toList();
 
         namedParameterJdbcTemplate.batchUpdate(sql, batchParams.toArray(new MapSqlParameterSource[0]));
+    }
+
+    public boolean cugAccountExists(String accountNo) {
+        String sql = "SELECT COUNT(*) FROM network_il.cug_account WHERE cug_account_no = :accountNo";
+
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("accountNo", accountNo);
+
+        Integer count = namedParameterJdbcTemplate.queryForObject(sql, params, Integer.class);
+
+        return count != null && count > 0;
     }
 
 }

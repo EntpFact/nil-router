@@ -276,8 +276,8 @@ public class Pacs004XmlProcessor {
             header.setBatchId(!pacs004.isEmpty() ? pacs004.get(0).getBatchId() : null);
             header.setOrignlReqCount(pacs004.size());
             header.setConsolidateAmt(BigDecimal.valueOf(consolidateAmountEPH+consolidateAmountFC));
-            header.setConsolidateAmtEPH(BigDecimal.valueOf(consolidateAmountEPH).toString());
-            header.setConsolidateAmtFC(BigDecimal.valueOf(consolidateAmountFC).toString());
+            header.setConsolidateAmtEPH(BigDecimal.valueOf(consolidateAmountEPH));
+            header.setConsolidateAmtFC(BigDecimal.valueOf(consolidateAmountFC));
             header.setIntermediateReqFCCount(fcCount);
             header.setIntermediateReqEPHCount(ephCount);
 

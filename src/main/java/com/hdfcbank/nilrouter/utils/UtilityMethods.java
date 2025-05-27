@@ -1,12 +1,11 @@
 package com.hdfcbank.nilrouter.utils;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
-
-import lombok.extern.slf4j.Slf4j;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -16,7 +15,6 @@ import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
 import java.io.IOException;
-import java.io.StringReader;
 import java.io.StringReader;
 import java.math.BigDecimal;
 
@@ -39,6 +37,24 @@ public class UtilityMethods {
 
     }
 
+
+
+    public BigDecimal getTotalAmount(Document originalDoc) throws XPathExpressionException {
+        XPath xpath = XPathFactory.newInstance().newXPath();
+        String totalAmountString = (String) xpath.evaluate("//*[local-name()='GrpHdr']/*[local-name()='TtlIntrBkSttlmAmt']", originalDoc, XPathConstants.STRING);
+        BigDecimal totalAmount = new BigDecimal(totalAmountString);
+        return totalAmount;
+
+    }
+
+    public String evaluateText(XPath xpath, Node node, String expression) {
+        try {
+            Node result = (Node) xpath.evaluate(expression, node, XPathConstants.NODE);
+            return result != null ? result.getTextContent().trim() : "";
+        } catch (Exception e) {
+            return "";
+        }
+    }
 
     public boolean isOutward(String xml) {
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();

@@ -37,6 +37,7 @@ spring:
     password: ${password:test123}
     driver-class-name: ${diverclassname:org.postgresql.Driver}
 
+
 routing:
   header: testHeader
   mappings:
@@ -47,6 +48,9 @@ routing:
     admi.004.001.01: admi004
     admi.004.001.02: admi004
     pacs.002.001.11: pacs002
+    pacs.004.001.10: pacs004
+    #camt.059.001.06: camt59
+    admi: channelA
 
 message:
   xpath:
@@ -55,7 +59,10 @@ message:
       camt.059.001.06: "//*[local-name()='OrgnlNtfctnRef']"
       #camt.054.001.08: "//*[local-name()='TxDtls']"
       #camt.052.001.08: "//*[local-name()='TxDtls']"
+      pacs.004.001.10: "//*[local-name()='TxDtls']"
       # Add more message types and their XPaths as needed
+    #pacs.008.001.09: pacs008
+
 
 topic:
   fctopic: FCTOPIC

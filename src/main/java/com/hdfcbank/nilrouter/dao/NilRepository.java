@@ -18,7 +18,7 @@ import java.util.List;
 public class NilRepository {
 
     @Autowired
-    private NamedParameterJdbcTemplate namedParameterJdbcTemplate;
+    NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
 
     public String findTargetByTxnId(String txnId) {
@@ -52,7 +52,7 @@ public class NilRepository {
         params.addValue("msg_type", msgEventTracker.getMsgType());
         params.addValue("original_req", msgEventTracker.getOrgnlReq());
         params.addValue("original_req_count", msgEventTracker.getOrgnlReqCount());
-        params.addValue("consolidate_amt", null);
+        params.addValue("consolidate_amt", msgEventTracker.getConsolidateAmt());
         params.addValue("intermediate_req", msgEventTracker.getIntermediateReq());
         params.addValue("intemdiate_count", msgEventTracker.getIntermediateCount());
         params.addValue("status", null);

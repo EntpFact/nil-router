@@ -3,7 +3,6 @@ package com.hdfcbank.nilrouter.service;
 import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
 import com.hdfcbank.nilrouter.model.Pacs004Fields;
-import com.hdfcbank.nilrouter.service.pacs004.Pacs004XmlOutwardprocess;
 import com.hdfcbank.nilrouter.service.pacs004.Pacs004XmlProcessor;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,9 +27,6 @@ public class Pacs004XmlProcessorTest {
     private Pacs004XmlProcessor processor;
 
     @Mock
-    private Pacs004XmlOutwardprocess outProcess;
-
-    @Mock
     private NilRepository dao;
 
     @Mock
@@ -40,7 +36,7 @@ public class Pacs004XmlProcessorTest {
     private KafkaUtils kafkaUtils;
 
     @Mock
-    private Pacs004XmlOutwardprocess outwardService;
+    private AuditService outwardService;
 
     @BeforeEach
     public void setup() {

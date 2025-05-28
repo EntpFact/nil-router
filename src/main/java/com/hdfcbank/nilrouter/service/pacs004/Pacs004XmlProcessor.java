@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
 import com.hdfcbank.nilrouter.model.*;
+import com.hdfcbank.nilrouter.service.AuditService;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,13 +65,13 @@ public class Pacs004XmlProcessor {
     private String sfmstopic;
 
     @Autowired
-    Pacs004XmlOutwardprocess outwardService;
+    AuditService outwardService;
 
     @ServiceActivator(inputChannel = "pacs004")
     public void parseXml(String xmlString) throws Exception {
 
         if (utilityMethods.isOutward(xmlString)) {
-            outwardService.processXML(xmlString);
+            outwardService.auditData(xmlString);
 
             String json = null;
 

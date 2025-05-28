@@ -118,6 +118,12 @@ public class AuditService {
                     transaction.setTxnId(evaluateText(xpath, txNode, ".//*[local-name()='OrgnlItmId']"));
                     transaction.setAmount(new BigDecimal(evaluateText(xpath, txNode, ".//*[local-name()='Amt']")));
                     transaction.setBatchId(evaluateText(xpath, txNode, ".//*[local-name()='AddtlNtfctnInf']"));
+                }else if("pacs.004.001.09".equals(msgType)){
+                    transaction.setEndToEndId(evaluateText(xpath, txNode, ".//*[local-name()='EndToEndId']"));
+                    transaction.setTxnId(evaluateText(xpath, txNode, ".//*[local-name()='TxId']"));
+                    transaction.setAmount(new BigDecimal(evaluateText(xpath, txNode, ".//*[local-name()='IntrBkSttlmAmt']")));
+                    transaction.setBatchId(evaluateText(xpath, txNode, ".//*[local-name()='RmtInf']//*[local-name()='Ustrd']"));
+
                 }
 
                 transaction.setMsgType(msgType);

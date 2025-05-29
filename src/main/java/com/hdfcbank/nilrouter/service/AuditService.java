@@ -98,7 +98,7 @@ public class AuditService {
                 tracker.setOrgnlReq(xmlPayload);
             }
 
-            nilRepository.saveDataInMsgEventTracker(tracker);
+
 
             // Take the mappings from map
             Map<String, String> msgTypeToXPathMap = xPathConfig.getMappings();
@@ -110,6 +110,11 @@ public class AuditService {
 
             List<TransactionAudit> listOfTransactions = new ArrayList<>();
             NodeList txNodes = (NodeList) xpath.evaluate(txnXPath, originalDoc, XPathConstants.NODESET);
+           if("pacs.004.001.10".equals(msgType)){
+               tracker.setOrgnlReqCount(txNodes.getLength());
+
+           }
+            nilRepository.saveDataInMsgEventTracker(tracker);
             for (int i = 0; i < txNodes.getLength(); i++) {
                 Node txNode = txNodes.item(i);
 
@@ -127,9 +132,9 @@ public class AuditService {
                     transaction.setAmount(new BigDecimal(evaluateText(xpath, txNode, ".//*[local-name()='Amt']")));
                     transaction.setBatchId(evaluateText(xpath, txNode, ".//*[local-name()='AddtlNtfctnInf']"));
                 } else if ("pacs.004.001.10".equals(msgType)) {
-                    transaction.setEndToEndId(evaluateText(xpath, txNode, ".//*[local-name()='EndToEndId']"));
-                    transaction.setTxnId(evaluateText(xpath, txNode, ".//*[local-name()='TxId']"));
-                    transaction.setAmount(new BigDecimal(evaluateText(xpath, txNode, ".//*[local-name()='IntrBkSttlmAmt']")));
+                    transaction.setEndToEndId(evaluateText(xpath, txNode, ".//*[local-name()='OrgnlEndToEndId']"));
+                    transaction.setTxnId(evaluateText(xpath, txNode, ".//*[local-name()='OrgnlTxId']"));
+                    transaction.setAmount(new BigDecimal(evaluateText(xpath, txNode, ".//*[local-name()='RtrdIntrBkSttlmAmt']")));
                     transaction.setBatchId(evaluateText(xpath, txNode, ".//*[local-name()='RmtInf']//*[local-name()='Ustrd']"));
 
                 }

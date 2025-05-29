@@ -3,6 +3,7 @@ package com.hdfcbank.nilrouter.service.pacs004;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hdfcbank.nilrouter.dao.NilRepository;
+//import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
 import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
 import com.hdfcbank.nilrouter.model.*;
 import com.hdfcbank.nilrouter.service.AuditService;
@@ -51,8 +52,8 @@ public class Pacs004XmlProcessor {
 
     @Autowired
     UtilityMethods utilityMethods;
-    @Autowired
-    KafkaUtils kafkautils;
+    //@Autowired
+   // KafkaUtils kafkautils;
 
     @Value("${topic.fctopic}")
     String fcTopic;
@@ -110,7 +111,7 @@ public class Pacs004XmlProcessor {
 
                 // Send json to Message Tracker service
 
-                kafkautils.publishToResponseTopic(json, msgEventTrackerTopic);
+               // kafkautils.publishToResponseTopic(json, msgEventTrackerTopic);
 
 
             } catch (JsonProcessingException e) {
@@ -128,7 +129,7 @@ public class Pacs004XmlProcessor {
 
 
             //Send to SFMS
-            kafkautils.publishToResponseTopic(xmlString, sfmstopic);
+           // kafkautils.publishToResponseTopic(xmlString, sfmstopic);
 
         } else {
             processXML(xmlString);
@@ -214,7 +215,7 @@ public class Pacs004XmlProcessor {
                 tracker.setOrgnlReq(xml);
                 fcPresent = true;
                 dao.saveDataInMsgEventTracker(tracker);
-                kafkautils.publishToResponseTopic(xml, fcTopic);
+               // kafkautils.publishToResponseTopic(xml, fcTopic);
 
             } else if (!has0to4 && has5to9) {
                 Document outputDoc = filterOrgnlItmAndSts(document, 5, 9, ephCount, consolidateAmountEPH);
@@ -235,7 +236,7 @@ public class Pacs004XmlProcessor {
                 tracker.setOrgnlReq(xml);
                 ephPresent = true;
                 dao.saveDataInMsgEventTracker(tracker);
-                kafkautils.publishToResponseTopic(xml, ephTopic);
+              //  kafkautils.publishToResponseTopic(xml, ephTopic);
             } else if (has0to4 && has5to9) {
                 Document outputDoc1 = filterOrgnlItmAndSts(document, 0, 4, fcCount, consolidateAmountFC);
                 Document outputDoc2 = filterOrgnlItmAndSts(document, 5, 9, ephCount, consolidateAmountEPH);
@@ -255,7 +256,7 @@ public class Pacs004XmlProcessor {
                 fcTracker.setIntermediateReq(outputDocString);
                 fcTracker.setOrgnlReqCount(pacs004.size());
                 fcTracker.setIntermediateCount(fcCount);
-                kafkautils.publishToResponseTopic(outputDocString, fcTopic);
+               // kafkautils.publishToResponseTopic(outputDocString, fcTopic);
 
                 MsgEventTracker ephTracker = new MsgEventTracker();
                 ephTracker.setMsgId(utilityMethods.getBizMsgIdr(document));
@@ -271,7 +272,7 @@ public class Pacs004XmlProcessor {
                 fcAndEphPresent = true;
                 dao.saveDataInMsgEventTracker(fcTracker);
                 dao.saveDataInMsgEventTracker(ephTracker);
-                kafkautils.publishToResponseTopic(outputDocString1, ephTopic);
+                //kafkautils.publishToResponseTopic(outputDocString1, ephTopic);
             }
             Header header = new Header();
             header.setMsgId(utilityMethods.getBizMsgIdr(document));
@@ -308,7 +309,7 @@ public class Pacs004XmlProcessor {
             dao.saveAllTransactionAudits(transactionAudits);
 
             // Send json to Message Tracker service
-            kafkautils.publishToResponseTopic(json, msgEventTrackerTopic);
+          //  kafkautils.publishToResponseTopic(json, msgEventTrackerTopic);
 
 
         } catch (Exception e) {

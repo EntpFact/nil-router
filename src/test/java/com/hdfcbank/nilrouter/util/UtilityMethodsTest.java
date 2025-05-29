@@ -5,6 +5,7 @@ import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
+
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
@@ -43,33 +44,33 @@ class UtilityMethodsTest {
     @Test
     void testIsOutward_shouldReturnTrue() {
         String xml = """
-            <Document>
-                <Fr>HDFCXYZ</Fr>
-                <To>RBIABC</To>
-            </Document>
-        """;
+                    <Document>
+                        <Fr>HDFCXYZ</Fr>
+                        <To>RBIABC</To>
+                    </Document>
+                """;
         assertTrue(utilityMethods.isOutward(xml));
     }
 
     @Test
     void testIsOutward_shouldReturnFalse_whenFromIsNotHDFC() {
         String xml = """
-            <Document>
-                <Fr>SBIABC</Fr>
-                <To>RBIABC</To>
-            </Document>
-        """;
+                    <Document>
+                        <Fr>SBIABC</Fr>
+                        <To>RBIABC</To>
+                    </Document>
+                """;
         assertFalse(utilityMethods.isOutward(xml));
     }
 
     @Test
     void testIsOutward_shouldReturnFalse_whenToIsNotRBI() {
         String xml = """
-            <Document>
-                <Fr>HDFCABC</Fr>
-                <To>XYZBANK</To>
-            </Document>
-        """;
+                    <Document>
+                        <Fr>HDFCABC</Fr>
+                        <To>XYZBANK</To>
+                    </Document>
+                """;
         assertFalse(utilityMethods.isOutward(xml));
     }
 

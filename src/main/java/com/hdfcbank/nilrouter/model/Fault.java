@@ -10,9 +10,9 @@ import lombok.ToString;
 @Builder
 @ToString
 public class Fault {
-	String errorType;
-	String responseStatusCode;
+    String errorType;
+    String responseStatusCode;
     String errorCode;
     String errorDescription;
-   
+
 }

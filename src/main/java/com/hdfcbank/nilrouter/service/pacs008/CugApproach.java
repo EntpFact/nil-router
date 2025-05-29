@@ -3,7 +3,10 @@ package com.hdfcbank.nilrouter.service.pacs008;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
-import com.hdfcbank.nilrouter.model.*;
+import com.hdfcbank.nilrouter.model.Body;
+import com.hdfcbank.nilrouter.model.Header;
+import com.hdfcbank.nilrouter.model.MessageEventTracker;
+import com.hdfcbank.nilrouter.utils.Constants;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,11 +15,9 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
@@ -24,15 +25,12 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
-import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
-import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 @Service
 public class CugApproach {
@@ -40,11 +38,8 @@ public class CugApproach {
     @Autowired
     private KafkaUtils kafkaUtils;
 
-    @Value("${topic.fctopic}")
-    private String fctopic;
-
-    @Value("${topic.ephtopic}")
-    private String ephtopic;
+    @Value("${topic.msgeventtrackertopic}")
+    private String msgEventTrackerTopic;
 
     @Autowired
     private UtilityMethods utilityMethods;
@@ -71,7 +66,6 @@ public class CugApproach {
 
         List<Node> Fc = new ArrayList<>();
         List<Node> EPH = new ArrayList<>();
-//        List<TransactionAudit> listOfTransactions = new ArrayList<>();
         String fcXml = null;
         String ephXml = null;
         boolean fcPresent = false;
@@ -82,16 +76,6 @@ public class CugApproach {
         for (int i = 0; i < txNodes.getLength(); i++) {
             Node tx = txNodes.item(i);
 
-//            TransactionAudit transaction = new TransactionAudit();
-//            transaction.setMsgId(msgId);
-//            transaction.setEndToEndId(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='EndToEndId']"));
-//            transaction.setTxnId(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='TxId']"));
-//            transaction.setAmount(new BigDecimal(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='IntrBkSttlmAmt']")));
-//            transaction.setBatchId(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='RmtInf']//*[local-name()='Ustrd']"));
-//            transaction.setSource("NIL");
-//            transaction.setFlowType("inward");
-//            transaction.setMsgType(msgType);
-//            transaction.setReqPayload(xmlPayload);
 
             if (isValidCugAccount(tx)) {
                 EPH.add(tx);
@@ -104,7 +88,6 @@ public class CugApproach {
 
             }
 
-//            listOfTransactions.add(transaction);
         }
 
         MessageEventTracker messageEventTracker = new MessageEventTracker();
@@ -116,10 +99,10 @@ public class CugApproach {
 
         header.setMsgId(msgId);
         header.setMsgType(msgType);
-        header.setSource("NIL");
+        header.setSource(Constants.NIL_SOURCE);
         header.setTargetEPH(ephPresent);
         header.setTargetFC(fcPresent);
-        header.setFlowType("Inward");
+        header.setFlowType(Constants.INWARD_FLOW);
         header.setConsolidateAmt(totalAmount);
         header.setOrignlReqCount(txNodes.getLength());
         header.setIntermediateReqFCCount(Fc.size());
@@ -128,33 +111,26 @@ public class CugApproach {
         header.setConsolidateAmtEPH(ephTotal);
 
 
-
         if (fcPresent) {
-            fcXml = buildNewXml(originalDoc,dBuilder, Fc);
+            fcXml = buildNewXml(originalDoc, dBuilder, Fc);
             body.setFcPayload(fcXml);
         }
         if (ephPresent) {
-            ephXml = buildNewXml(originalDoc,dBuilder, EPH);
+            ephXml = buildNewXml(originalDoc, dBuilder, EPH);
             body.setEphPayload(ephXml);
         }
 
-        if(fcPresent && ephPresent)
-        {
+        if (fcPresent && ephPresent) {
             header.setTargetFCEPH(true);
         }
 
         messageEventTracker.setHeader(header);
         messageEventTracker.setBody(body);
 
-        String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
+        String messageEventTrackerJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
 
+        kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
 
-//        if (fcXml != null) {
-//            kafkaUtils.publishToResponseTopic(fcXml, fctopic);
-//        }
-//        if (ephXml != null) {
-//            kafkaUtils.publishToResponseTopic(ephXml, ephtopic);
-//        }
 
     }
 
@@ -166,27 +142,6 @@ public class CugApproach {
 
     }
 
-//    private String buildAndAudit(String xmlPayload, List<Node> txList, List<TransactionAudit> allTxns, String target, DocumentBuilder dBuilder, Document originalDoc, Header header, Body body) throws Exception {
-//        String intermediateXml = buildNewXml(originalDoc, dBuilder, txList);
-//        int count = (int) allTxns.stream().filter(t -> target.equals(t.getTarget())).count();
-//        BigDecimal total = allTxns.stream().filter(t -> target.equals(t.getTarget())).map(TransactionAudit::getAmount).filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
-//
-////        MsgEventTracker tracker = new MsgEventTracker();
-////        tracker.setMsgId(msgId);
-////        tracker.setSource("NIL");
-////        tracker.setTarget(target);
-////        tracker.setFlowType("inward");
-////        tracker.setMsgType(msgType);
-////        tracker.setOrgnlReq(xmlPayload);
-////        tracker.setIntermediateReq(intermediateXml);
-////        tracker.setOrgnlReqCount(allTxns.size());
-////        tracker.setIntermediateCount(count);
-////        tracker.setConsolidateAmt(total);
-////
-////        nilRepository.saveDataInMsgEventTracker(tracker);
-//
-//        return intermediateXml;
-//    }
 
     private String buildNewXml(Document originalDoc, DocumentBuilder dBuilder, List<Node> txNodes) throws Exception {
         Document newDoc = dBuilder.newDocument();

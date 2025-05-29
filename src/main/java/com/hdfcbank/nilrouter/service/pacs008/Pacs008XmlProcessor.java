@@ -1,7 +1,6 @@
 package com.hdfcbank.nilrouter.service.pacs008;
 
 
-import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
 import com.hdfcbank.nilrouter.service.AuditService;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,14 +29,12 @@ public class Pacs008XmlProcessor {
     @Autowired
     AuditService auditService;
 
-    @Autowired
-    private KafkaUtils kafkaUtils;
 
     @Autowired
     private CugApproach cugApproach;
 
-    @Value("${topic.sfmstopic}")
-    private String sfmstopic;
+    @Value("${topic.msgeventtrackertopic}")
+    private String msgEventTrackerTopic;
 
     @Value("${cug_flag}")
     private String cugFlag;
@@ -49,8 +46,7 @@ public class Pacs008XmlProcessor {
     public void parseXml(String xmlString) throws Exception {
 
         if (utilityMethods.isOutward(xmlString)) {
-            auditService.contructMsgEventTrackerJson(xmlString);
-            kafkaUtils.publishToResponseTopic(xmlString, sfmstopic);
+            auditService.constructOutwardJsonAndPublish(xmlString);
         } else {
             if (cugFlag.equalsIgnoreCase("true")) {
                 cugApproach.processCugApproach(xmlString);

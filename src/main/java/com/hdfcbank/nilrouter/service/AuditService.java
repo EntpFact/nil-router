@@ -3,10 +3,12 @@ package com.hdfcbank.nilrouter.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hdfcbank.nilrouter.config.MessageXPathConfig;
 import com.hdfcbank.nilrouter.dao.NilRepository;
+import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
 import com.hdfcbank.nilrouter.model.*;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -45,6 +47,12 @@ public class AuditService {
 
     @Autowired
     private UtilityMethods utilityMethods;
+
+    @Autowired
+    private KafkaUtils kafkaUtils;
+
+    @Value("${topic.msgeventtrackertopic}")
+    private String msgEventTrackerTopic;
 
     public void auditData(String xmlPayload) {
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
@@ -118,7 +126,7 @@ public class AuditService {
                     transaction.setTxnId(evaluateText(xpath, txNode, ".//*[local-name()='OrgnlItmId']"));
                     transaction.setAmount(new BigDecimal(evaluateText(xpath, txNode, ".//*[local-name()='Amt']")));
                     transaction.setBatchId(evaluateText(xpath, txNode, ".//*[local-name()='AddtlNtfctnInf']"));
-                }else if("pacs.004.001.10".equals(msgType)){
+                } else if ("pacs.004.001.10".equals(msgType)) {
                     transaction.setEndToEndId(evaluateText(xpath, txNode, ".//*[local-name()='EndToEndId']"));
                     transaction.setTxnId(evaluateText(xpath, txNode, ".//*[local-name()='TxId']"));
                     transaction.setAmount(new BigDecimal(evaluateText(xpath, txNode, ".//*[local-name()='IntrBkSttlmAmt']")));
@@ -147,8 +155,7 @@ public class AuditService {
     }
 
 
-    public void contructMsgEventTrackerJson(String xmlPayload) throws Exception
-    {
+    public void constructOutwardJsonAndPublish(String xmlPayload) throws Exception {
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         dbFactory.setNamespaceAware(true);
         DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
@@ -159,9 +166,9 @@ public class AuditService {
         NodeList txNodes = (NodeList) xpath.evaluate("//*[local-name()='CdtTrfTxInf']", originalDoc, XPathConstants.NODESET);
 
 
-        MessageEventTracker msgEvtTracker=new MessageEventTracker();
-        Header header=new Header();
-        Body body=new Body();
+        MessageEventTracker messageEventTracker = new MessageEventTracker();
+        Header header = new Header();
+        Body body = new Body();
         header.setMsgId(utilityMethods.getBizMsgIdr(originalDoc));
         header.setSource("NIL");
         header.setMsgType(utilityMethods.getMsgDefIdr(originalDoc));
@@ -173,12 +180,12 @@ public class AuditService {
 
         body.setReqPayload(xmlPayload);
 
-        msgEvtTracker.setBody(body);
-        msgEvtTracker.setHeader(header);
+        messageEventTracker.setBody(body);
+        messageEventTracker.setHeader(header);
 
-       String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(msgEvtTracker);
+        String messageEventTrackerJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
 
-
+        kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
 
     }
 

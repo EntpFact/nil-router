@@ -58,8 +58,8 @@ public class AdmiXmlProcessor {
 
         header.setMsgId(msgId);
         header.setMsgType(utilityMethods.getMsgDefIdr(originalDoc));
-        header.setSource(Constants.NIL_SOURCE);
-        header.setFlowType(Constants.INWARD_FLOW);
+        header.setSource(Constants.NIL);
+        header.setFlowType(Constants.INWARD);
 
         body.setReqPayload(xmlString);
 

@@ -88,10 +88,10 @@ public class InwardService {
 
         header.setMsgId(msgId);
         header.setMsgType(msgType);
-        header.setSource(Constants.NIL_SOURCE);
+        header.setSource(Constants.NIL);
         header.setTargetEPH(ephPresent);
         header.setTargetFC(fcPresent);
-        header.setFlowType(Constants.INWARD_FLOW);
+        header.setFlowType(Constants.INWARD);
         header.setConsolidateAmt(totalAmount);
         header.setOrignlReqCount(txNodes.getLength());
         if (fcPresent) {
@@ -142,8 +142,8 @@ public class InwardService {
         Header header = new Header();
         header.setMsgType(utilityMethods.getMsgDefIdr(originalDoc));
         header.setMsgId(utilityMethods.getBizMsgIdr(originalDoc));
-        header.setSource(Constants.NIL_SOURCE);
-        header.setFlowType(Constants.INWARD_FLOW);
+        header.setSource(Constants.NIL);
+        header.setFlowType(Constants.INWARD);
         header.setOrignlReqCount(txNodes.getLength());
         header.setConsolidateAmt(utilityMethods.getTotalAmount(originalDoc));
 

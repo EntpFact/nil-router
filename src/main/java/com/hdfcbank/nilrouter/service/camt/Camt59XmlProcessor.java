@@ -43,6 +43,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.hdfcbank.nilrouter.utils.Constants.*;
+
 
 @Slf4j
 @Service
@@ -87,12 +89,12 @@ public class Camt59XmlProcessor {
                 Document document = builder.parse(new InputSource(new StringReader(xml)));
                 Header header = new Header();
                 header.setMsgId(utilityMethods.getBizMsgIdr(document));
-                header.setSource("NIL");
+                header.setSource(NIL);
                 header.setTargetFC(false);
                 header.setTargetEPH(false);
                 header.setTargetFCEPH(false);
                 header.setTargetSFMS(true);
-                header.setFlowType("Outward");
+                header.setFlowType(OUTWARD);
                 header.setMsgType(utilityMethods.getMsgDefIdr(document));
 
                 Body body = new Body();
@@ -218,18 +220,15 @@ public class Camt59XmlProcessor {
 
             Header header = new Header();
             header.setMsgId(utilityMethods.getBizMsgIdr(document));
-            header.setSource("NIL");
+            header.setSource(NIL);
             header.setTargetFC(fcPresent);
             header.setTargetEPH(ephPresent);
             header.setTargetFCEPH(fcAndEphPresent);
-            header.setFlowType("Inward");
+            header.setFlowType(INWARD);
             header.setMsgType(utilityMethods.getMsgDefIdr(document));
             header.setOrignlReqCount(camt59.size());
-            //header.setConsolidateAmt("100000");
-            //header.setConsolidateAmtEPH("60000");
-            //header.setConsolidateAmtFC("40000");
-            header.setIntermediateReqFCCount(ephCount);
-            header.setIntermediateReqEPHCount(fcCount);
+            header.setIntermediateReqFCCount(fcCount);
+            header.setIntermediateReqEPHCount(ephCount);
 
             Body body = new Body();
             body.setReqPayload(xml);

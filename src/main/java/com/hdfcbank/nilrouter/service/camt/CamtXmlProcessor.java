@@ -25,6 +25,9 @@ import javax.xml.xpath.XPathExpressionException;
 import java.io.IOException;
 import java.io.StringReader;
 
+import static com.hdfcbank.nilrouter.utils.Constants.INWARD;
+import static com.hdfcbank.nilrouter.utils.Constants.NIL;
+
 @Slf4j
 @Service
 public class CamtXmlProcessor {
@@ -62,11 +65,11 @@ public class CamtXmlProcessor {
             Document document = builder.parse(new InputSource(new StringReader(xmlString)));
             Header header = new Header();
             header.setMsgId(utilityMethods.getBizMsgIdr(document));
-            header.setSource("NIL");
+            header.setSource(NIL);
             header.setTargetFC(false);
             header.setTargetEPH(false);
             header.setTargetFCEPH(true);
-            header.setFlowType("Inward");
+            header.setFlowType(INWARD);
             header.setMsgType(utilityMethods.getMsgDefIdr(document));
 
             Body body = new Body();

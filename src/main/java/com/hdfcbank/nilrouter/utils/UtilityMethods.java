@@ -38,7 +38,6 @@ public class UtilityMethods {
     }
 
 
-
     public BigDecimal getTotalAmount(Document originalDoc) throws XPathExpressionException {
         XPath xpath = XPathFactory.newInstance().newXPath();
         String totalAmountString = (String) xpath.evaluate("//*[local-name()='GrpHdr']/*[local-name()='TtlIntrBkSttlmAmt']", originalDoc, XPathConstants.STRING);

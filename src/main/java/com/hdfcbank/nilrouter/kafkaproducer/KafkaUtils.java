@@ -12,21 +12,21 @@ import reactor.core.publisher.Mono;
 @Service
 public class KafkaUtils {
 
-	@Autowired
-	DaprProducer daprProducer;
+    @Autowired
+    DaprProducer daprProducer;
 
 
-	public void publishToResponseTopic(String message, String topic) {
+    public void publishToResponseTopic(String message, String topic) {
 
-		var kafkaBinding = PubSubOptions.builder().requestData(message).topic(topic)
-				.pubsubName(Constants.KAFKA_RESPONSE_TOPIC_DAPR_BINDING).build();
-		var resp = daprProducer.invokeDaprPublishEvent(kafkaBinding);
-		resp.doOnSuccess(res -> {
-			log.info("Response published to response topic successfully");
-		}).onErrorResume(res -> {
-			log.info("Error on publishing the response to response topic");
-			return Mono.empty();
-		}).share().block();
+        var kafkaBinding = PubSubOptions.builder().requestData(message).topic(topic)
+                .pubsubName(Constants.KAFKA_RESPONSE_TOPIC_DAPR_BINDING).build();
+        var resp = daprProducer.invokeDaprPublishEvent(kafkaBinding);
+        resp.doOnSuccess(res -> {
+            log.info("Response published to response topic successfully");
+        }).onErrorResume(res -> {
+            log.info("Error on publishing the response to response topic");
+            return Mono.empty();
+        }).share().block();
 
-	}
+    }
 }

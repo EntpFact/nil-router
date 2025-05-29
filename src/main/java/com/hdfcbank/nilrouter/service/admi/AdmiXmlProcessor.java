@@ -6,7 +6,7 @@ import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
 import com.hdfcbank.nilrouter.model.Body;
 import com.hdfcbank.nilrouter.model.Header;
 import com.hdfcbank.nilrouter.model.MessageEventTracker;
-import com.hdfcbank.nilrouter.model.MsgEventTracker;
+import com.hdfcbank.nilrouter.utils.Constants;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,11 +33,8 @@ public class AdmiXmlProcessor {
     @Autowired
     private KafkaUtils kafkaUtils;
 
-    @Value("${topic.fctopic}")
-    private String fctopic;
-
-    @Value("${topic.ephtopic}")
-    private String ephtopic;
+    @Value("${topic.msgeventtrackertopic}")
+    private String msgEventTrackerTopic;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -55,34 +52,24 @@ public class AdmiXmlProcessor {
         String CreDt = xpath.evaluate("//*[local-name()='AppHdr']/*[local-name()='CreDt']", originalDoc);
         String evtCd = xpath.evaluate("//*[local-name()='Document']//*[local-name()='EvtCd']", originalDoc);
 
-//        MsgEventTracker tracker = new MsgEventTracker();
-//        tracker.setMsgId(msgId);
-//        tracker.setSource("NIL");
-//        tracker.setFlowType("inward");
-//        tracker.setMsgType(evtCd);
-//        tracker.setOrgnlReq(xmlString);
-        MessageEventTracker messageEventTracker=new MessageEventTracker();
-        Header header=new Header();
-        Body body=new Body();
+        MessageEventTracker messageEventTracker = new MessageEventTracker();
+        Header header = new Header();
+        Body body = new Body();
 
         header.setMsgId(msgId);
         header.setMsgType(utilityMethods.getMsgDefIdr(originalDoc));
-        header.setSource("NIL");
-        header.setFlowType("Inward");
+        header.setSource(Constants.NIL_SOURCE);
+        header.setFlowType(Constants.INWARD_FLOW);
 
         body.setReqPayload(xmlString);
 
         if (evtCd.equalsIgnoreCase("F95")) {
-//            tracker.setTarget("FC & EPH");
 
             header.setTargetFCEPH(true);
             header.setTargetFC(true);
             header.setTargetEPH(true);
             body.setFcPayload(xmlString);
             body.setEphPayload(xmlString);
-
-//            kafkaUtils.publishToResponseTopic(xmlString, fctopic);
-//            kafkaUtils.publishToResponseTopic(xmlString, ephtopic);
 
 
         } else {
@@ -92,12 +79,10 @@ public class AdmiXmlProcessor {
                 header.setTargetFC(true);
                 body.setFcPayload(xmlString);
 
-//                kafkaUtils.publishToResponseTopic(xmlString, fctopic);
 
             } else if (ch >= '5' && ch <= '9') {
                 header.setTargetEPH(true);
                 body.setEphPayload(xmlString);
-//                kafkaUtils.publishToResponseTopic(xmlString, ephtopic);
 
 
             }
@@ -105,9 +90,11 @@ public class AdmiXmlProcessor {
 
         messageEventTracker.setHeader(header);
         messageEventTracker.setBody(body);
-//        nilRepository.saveDataInMsgEventTracker(tracker);
 
-        String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
+        String messageEventTrackerJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
+
+        kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
+
 
     }
 }

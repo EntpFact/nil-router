@@ -1,5 +1,3 @@
-
-
 server:
   port: ${port:8086}
 
@@ -24,12 +22,12 @@ routing:
   mappings:
     pacs.008.001.09: ${ROUTING_CHANNEL1:pacs008}
     camt.059.001.06: ${ROUTING_CHANNEL2:camt59}
-    pacs.004.001.10: ${ROUTING_CHANNEL7:pacs004}
-    admi: ${ROUTING_CHANNEL6:channelA}
     camt.054.001.08: ${ROUTING_CHANNEL3:camt_52_54}
     camt.052.001.08: ${ROUTING_CHANNEL4:camt_52_54}
     admi.004.001.01: ${ROUTING_CHANNEL5:admi004}
-    pacs.002.001.11: ${ROUTING_CHANNEL8:pacs002}
+    admi.004.001.02: ${ROUTING_CHANNEL5:admi004}
+    pacs.002.001.11: ${ROUTING_CHANNEL6:pacs002}
+    pacs.004.001.10: ${ROUTING_CHANNEL7:pacs004}
 
 message:
   xpath:
@@ -43,6 +41,6 @@ topic:
   fctopic: ${FCTOPIC:FCTOPIC}
   ephtopic: ${EPHTOPIC:EPHTOPIC}
   sfmstopic: ${SFMSTOPIC:SFMSTOPIC}
-  msgeventtrackertopic:  ${MSGTOPIC:MSGEVENTTRACKERTOPIC}
+  msgeventtrackertopic: ${MSGTOPIC:MSGEVENTTRACKERTOPIC}
 
 cug_flag: ${CUG_FLAG:false}

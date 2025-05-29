@@ -126,10 +126,11 @@ public class Pacs004XmlProcessor {
             kafkautils.publishToResponseTopic(xmlString, sfmstopic);
 
         } else {
-                    processXML(xmlString);
-                }
+            processXML(xmlString);
+        }
 
     }
+
     public void processXML(String xml) {
         List<Pacs004Fields> pacs004 = new ArrayList<>();
         String bizMsgIdr = null, orgnlItmId = null, orgnlEndToEndId = null;
@@ -145,7 +146,7 @@ public class Pacs004XmlProcessor {
             XPath xpath = xpathFactory.newXPath();
 
             bizMsgIdr = xpath.evaluate("/*[local-name()='RequestPayload']/*[local-name()='AppHdr']/*[local-name()='BizMsgIdr']", document);
-            boolean  fcPresent=false, ephPresent=false, fcAndEphPresent=false;
+            boolean fcPresent = false, ephPresent = false, fcAndEphPresent = false;
             boolean has0to4 = false, has5to9 = false;
             Integer ephCount = 0;
             Integer fcCount = 0;
@@ -153,45 +154,46 @@ public class Pacs004XmlProcessor {
 
             NodeList orgnlItmAndStsList = (NodeList) xpath.evaluate("/*[local-name()='RequestPayload']/*[local-name()='Document']//*[local-name()='TxInf']", document, XPathConstants.NODESET);
             double consolidateAmountFC = 0;
-            double consolidateAmountEPH =0;
+            double consolidateAmountEPH = 0;
             for (int i = 0; i < orgnlItmAndStsList.getLength(); i++) {
                 Element orgnlItmAndSts = (Element) orgnlItmAndStsList.item(i);
                 String batchIdValue = "";
                 orgnlItmId = xpath.evaluate("./*[local-name()='OrgnlTxId']", orgnlItmAndSts);
                 orgnlEndToEndId = xpath.evaluate("./*[local-name()='OrgnlEndToEndId']", orgnlItmAndSts);
-                String amount =xpath.evaluate("./*[local-name()='RtrdIntrBkSttlmAmt']", orgnlItmAndSts);
+                String amount = xpath.evaluate("./*[local-name()='RtrdIntrBkSttlmAmt']", orgnlItmAndSts);
 
-                NodeList batchIdList=(NodeList)xpath.evaluate(".//*[local-name()='OrgnlTxRef']/*[local-name()='UndrlygCstmrCdtTrf']//*[local-name()='RmtInf']",  orgnlItmAndSts,XPathConstants.NODE);
-               if(batchIdList!=null){
-                for(int j=0;j<batchIdList.getLength();j++){
-                    String batchId=(batchIdList.item(j)).getTextContent();
-                    if(batchId.contains("BatchId")){
-                         batchIdValue=batchId;
+                NodeList batchIdList = (NodeList) xpath.evaluate(".//*[local-name()='OrgnlTxRef']/*[local-name()='UndrlygCstmrCdtTrf']//*[local-name()='RmtInf']", orgnlItmAndSts, XPathConstants.NODE);
+                if (batchIdList != null) {
+                    for (int j = 0; j < batchIdList.getLength(); j++) {
+                        String batchId = (batchIdList.item(j)).getTextContent();
+                        if (batchId.contains("BatchId")) {
+                            batchIdValue = batchId;
+                        }
+
                     }
-
-                }}
+                }
                 int digit = extractEndToEndIdDigit(orgnlItmId);
 
 
                 if (digit >= 0 && digit <= 4) {
                     has0to4 = true;
-                    consolidateAmountFC=consolidateAmountFC+Double.parseDouble(amount);
+                    consolidateAmountFC = consolidateAmountFC + Double.parseDouble(amount);
                     fcCount++;
-                    pacs004.add(new Pacs004Fields(bizMsgIdr, orgnlEndToEndId,orgnlItmId, amount, "FC",batchIdValue));
+                    pacs004.add(new Pacs004Fields(bizMsgIdr, orgnlEndToEndId, orgnlItmId, amount, "FC", batchIdValue));
                 } else if (digit >= 5 && digit <= 9) {
                     has5to9 = true;
                     ephCount++;
-                    consolidateAmountEPH +=Double.parseDouble(amount);
-                    pacs004.add(new Pacs004Fields(bizMsgIdr,orgnlEndToEndId, orgnlItmId,amount,  "EPH",batchIdValue));
+                    consolidateAmountEPH += Double.parseDouble(amount);
+                    pacs004.add(new Pacs004Fields(bizMsgIdr, orgnlEndToEndId, orgnlItmId, amount, "EPH", batchIdValue));
                 }
             }
 
-            String outputDocString=null;
-            String outputDocString1=null;
+            String outputDocString = null;
+            String outputDocString1 = null;
             if (has0to4 && !has5to9) {
-                Document outputDoc = filterOrgnlItmAndSts(document, 0, 4,fcCount,consolidateAmountFC);
+                Document outputDoc = filterOrgnlItmAndSts(document, 0, 4, fcCount, consolidateAmountFC);
 
-                 outputDocString = documentToXml(document);
+                outputDocString = documentToXml(document);
                 log.info("FC  : {}", outputDocString);
 
                 MsgEventTracker tracker = new MsgEventTracker();
@@ -205,12 +207,12 @@ public class Pacs004XmlProcessor {
                 tracker.setConsolidateAmt(BigDecimal.valueOf(consolidateAmountFC));
                 tracker.setMsgType(utilityMethods.getMsgDefIdr(document));
                 tracker.setOrgnlReq(xml);
-                fcPresent=true;
+                fcPresent = true;
                 dao.saveDataInMsgEventTracker(tracker);
-                kafkautils.publishToResponseTopic(xml,fcTopic);
+                kafkautils.publishToResponseTopic(xml, fcTopic);
 
             } else if (!has0to4 && has5to9) {
-                Document outputDoc = filterOrgnlItmAndSts(document, 5, 9,ephCount,consolidateAmountEPH);
+                Document outputDoc = filterOrgnlItmAndSts(document, 5, 9, ephCount, consolidateAmountEPH);
                 outputDocString = documentToXml(outputDoc);
                 log.info("EPH : {}", outputDocString);
 
@@ -226,12 +228,12 @@ public class Pacs004XmlProcessor {
                 tracker.setConsolidateAmt(BigDecimal.valueOf(consolidateAmountEPH));
                 tracker.setMsgType(utilityMethods.getMsgDefIdr(document));
                 tracker.setOrgnlReq(xml);
-                ephPresent=true;
+                ephPresent = true;
                 dao.saveDataInMsgEventTracker(tracker);
-                kafkautils.publishToResponseTopic(xml,ephTopic);
+                kafkautils.publishToResponseTopic(xml, ephTopic);
             } else if (has0to4 && has5to9) {
-                Document outputDoc1 = filterOrgnlItmAndSts(document, 0, 4,fcCount,consolidateAmountFC);
-                Document outputDoc2 = filterOrgnlItmAndSts(document, 5, 9,ephCount, consolidateAmountEPH);
+                Document outputDoc1 = filterOrgnlItmAndSts(document, 0, 4, fcCount, consolidateAmountFC);
+                Document outputDoc2 = filterOrgnlItmAndSts(document, 5, 9, ephCount, consolidateAmountEPH);
                 outputDocString = documentToXml(outputDoc1);
                 log.info("FC : {}", outputDocString);
                 outputDocString1 = documentToXml(outputDoc2);
@@ -248,7 +250,7 @@ public class Pacs004XmlProcessor {
                 fcTracker.setIntermediateReq(outputDocString);
                 fcTracker.setOrgnlReqCount(pacs004.size());
                 fcTracker.setIntermediateCount(fcCount);
-                kafkautils.publishToResponseTopic(outputDocString,fcTopic);
+                kafkautils.publishToResponseTopic(outputDocString, fcTopic);
 
                 MsgEventTracker ephTracker = new MsgEventTracker();
                 ephTracker.setMsgId(utilityMethods.getBizMsgIdr(document));
@@ -261,10 +263,10 @@ public class Pacs004XmlProcessor {
                 ephTracker.setIntermediateReq(outputDocString1);
                 ephTracker.setOrgnlReqCount(pacs004.size());
                 ephTracker.setIntermediateCount(ephCount);
-                fcAndEphPresent=true;
+                fcAndEphPresent = true;
                 dao.saveDataInMsgEventTracker(fcTracker);
                 dao.saveDataInMsgEventTracker(ephTracker);
-                kafkautils.publishToResponseTopic(outputDocString1,ephTopic);
+                kafkautils.publishToResponseTopic(outputDocString1, ephTopic);
             }
             Header header = new Header();
             header.setMsgId(utilityMethods.getBizMsgIdr(document));
@@ -276,7 +278,7 @@ public class Pacs004XmlProcessor {
             header.setMsgType(utilityMethods.getMsgDefIdr(document));
             header.setBatchId(!pacs004.isEmpty() ? pacs004.get(0).getBatchId() : null);
             header.setOrignlReqCount(pacs004.size());
-            header.setConsolidateAmt(BigDecimal.valueOf(consolidateAmountEPH+consolidateAmountFC));
+            header.setConsolidateAmt(BigDecimal.valueOf(consolidateAmountEPH + consolidateAmountFC));
             header.setConsolidateAmtEPH(BigDecimal.valueOf(consolidateAmountEPH));
             header.setConsolidateAmtFC(BigDecimal.valueOf(consolidateAmountFC));
             header.setIntermediateReqFCCount(fcCount);
@@ -298,7 +300,7 @@ public class Pacs004XmlProcessor {
 
             // Send json to Message Tracker service
 
-            List<TransactionAudit> transactionAudits = extractPacs004Transactions(document, xml,pacs004);
+            List<TransactionAudit> transactionAudits = extractPacs004Transactions(document, xml, pacs004);
 
             dao.saveAllTransactionAudits(transactionAudits);
 
@@ -321,7 +323,7 @@ public class Pacs004XmlProcessor {
             transaction.setMsgType("pacs.004.001.10");
             transaction.setSource("NIL");
             transaction.setBatchId(pacs004.getBatchId());
-            double d=Double.parseDouble(pacs004.getAmount());
+            double d = Double.parseDouble(pacs004.getAmount());
             transaction.setAmount(BigDecimal.valueOf(d));
             transaction.setTarget(pacs004.getSwtch());
             transaction.setFlowType("Inward");
@@ -333,7 +335,7 @@ public class Pacs004XmlProcessor {
     }
 
 
-    private static Document filterOrgnlItmAndSts(Document document, int minDigit, int maxDigit,int count,double total ) throws Exception {
+    private static Document filterOrgnlItmAndSts(Document document, int minDigit, int maxDigit, int count, double total) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         DocumentBuilder builder = factory.newDocumentBuilder();
 
@@ -362,15 +364,15 @@ public class Pacs004XmlProcessor {
 
             NodeList grpHdrList = (NodeList) xpath.evaluate(".//*[local-name()='GrpHdr']", originalDocument, XPathConstants.NODESET);
             if (grpHdrList.getLength() > 0) {
-                NodeList nbOfTxsList=((Element)grpHdrList.item(0)).getElementsByTagNameNS("*","NbOfTxs");
-                NodeList tlRtrdIntrBkSttlmAmtList=((Element)grpHdrList.item(0)).getElementsByTagNameNS("*","TtlRtrdIntrBkSttlmAmt");
+                NodeList nbOfTxsList = ((Element) grpHdrList.item(0)).getElementsByTagNameNS("*", "NbOfTxs");
+                NodeList tlRtrdIntrBkSttlmAmtList = ((Element) grpHdrList.item(0)).getElementsByTagNameNS("*", "TtlRtrdIntrBkSttlmAmt");
 
-                if (nbOfTxsList.getLength() > 0 ) {
+                if (nbOfTxsList.getLength() > 0) {
                     Element nbOfTxs = (Element) nbOfTxsList.item(0);
                     nbOfTxs.setTextContent(String.valueOf(count));
 
                 }
-                if (tlRtrdIntrBkSttlmAmtList.getLength() > 0 ) {
+                if (tlRtrdIntrBkSttlmAmtList.getLength() > 0) {
                     Element tlRtrdIntrBkSttlmAmt = (Element) tlRtrdIntrBkSttlmAmtList.item(0);
                     tlRtrdIntrBkSttlmAmt.setTextContent(String.valueOf(total));
                 }
@@ -386,13 +388,13 @@ public class Pacs004XmlProcessor {
 
             for (int i = 0; i < txInf.getLength(); i++) {
                 Element orgnlNtfctnRef = (Element) txInf.item(i);
-                    String orgnlTxId = xpath.evaluate("./*[local-name()='OrgnlTxId']", orgnlNtfctnRef);
+                String orgnlTxId = xpath.evaluate("./*[local-name()='OrgnlTxId']", orgnlNtfctnRef);
 
-                    int digit = extractEndToEndIdDigit(orgnlTxId);
-                    if (digit >= minDigit && digit <= maxDigit) {
-                        newTxInf.appendChild(newDoc.importNode(orgnlNtfctnRef, true));
-                        hasValidEntries = true;
-                    }
+                int digit = extractEndToEndIdDigit(orgnlTxId);
+                if (digit >= minDigit && digit <= maxDigit) {
+                    newTxInf.appendChild(newDoc.importNode(orgnlNtfctnRef, true));
+                    hasValidEntries = true;
+                }
             }
 
             if (hasValidEntries) {

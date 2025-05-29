@@ -95,7 +95,7 @@ public class CamtXmlProcessor {
             throw new RuntimeException(e);
         }
 
-        log.info("CAMT52 | CAMT54 Json : {}" ,json);
+        log.info("CAMT52 | CAMT54 Json : {}", json);
 
         // Send to message-event-tracker-service topic
         kafkaUtils.publishToResponseTopic(json, msgEventTrackerTopic);

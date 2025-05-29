@@ -1,10 +1,9 @@
-package com.hdfcbank.nilrouter.service;
+package com.hdfcbank.nilrouter.service.pacs002;
 
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
-import com.hdfcbank.nilrouter.service.pacs002.Pacs002XmlProcessor;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

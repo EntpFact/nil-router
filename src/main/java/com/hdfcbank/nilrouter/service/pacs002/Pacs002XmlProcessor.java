@@ -37,6 +37,9 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.hdfcbank.nilrouter.utils.Constants.INWARD;
+import static com.hdfcbank.nilrouter.utils.Constants.NIL;
+
 
 @Slf4j
 @Service
@@ -169,15 +172,15 @@ public class Pacs002XmlProcessor {
 
             Header header = new Header();
             header.setMsgId(utilityMethods.getBizMsgIdr(document));
-            header.setSource("NIL");
+            header.setSource(NIL);
             header.setTargetFC(fcPresent);
             header.setTargetEPH(ephPresent);
             header.setTargetFCEPH(fcAndEphPresent);
-            header.setFlowType("Inward");
+            header.setFlowType(INWARD);
             header.setMsgType(utilityMethods.getMsgDefIdr(document));
             header.setOrignlReqCount(pacs002.size());
-            header.setIntermediateReqFCCount(ephCount);
-            header.setIntermediateReqEPHCount(fcCount);
+            header.setIntermediateReqFCCount(fcCount);
+            header.setIntermediateReqEPHCount(ephCount);
 
             Body body = new Body();
             body.setReqPayload(xml);
@@ -282,7 +285,7 @@ public class Pacs002XmlProcessor {
     }
 
 
-    private static int extractOrgnlItmIdDigit(String orgnlItmId) {
+    public static int extractOrgnlItmIdDigit(String orgnlItmId) {
 
         Pattern pattern = Pattern.compile("^HDFCN.{9}(.)");
         Matcher matcher = pattern.matcher(orgnlItmId);

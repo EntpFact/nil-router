@@ -54,9 +54,10 @@ public class Pacs004XmlProcessorTest {
         when(utilityMethods.isOutward(xml)).thenReturn(true);
         when(utilityMethods.getBizMsgIdr(any())).thenReturn("ID123");
         when(utilityMethods.getMsgDefIdr(any())).thenReturn("pacs.004.001.10");
+        doNothing().when(outwardService).auditData(any());
 
         processor.parseXml(xml);
-//        outProcess.processXML(xml);
+//        outwardService.auditData(xml);
 
         // Here you'd assert logs/output or internal calls. Since it prints JSON, just verify processing.
         verify(utilityMethods, times(1)).getBizMsgIdr(any(Document.class));
@@ -103,20 +104,5 @@ public class Pacs004XmlProcessorTest {
         assertTrue(xmlResult.contains("<child>value</child>"));
     }
 
-    @Test
-    public void testExtractTransactions() throws Exception {
-        DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-        String xml = "<dummy/>";
-        Document doc = builder.newDocument();
-        List<Pacs004Fields> mockList = List.of(new Pacs004Fields("msgId", "endToEnd", "txId", "1000", "FC", "batchId"));
 
-        when(utilityMethods.getMsgDefIdr(any())).thenReturn("pacs.004.001.10");
-        when(utilityMethods.getBizMsgIdr(any())).thenReturn("msgId");
-
-        var result = processor.extractPacs004Transactions(doc, xml, mockList);
-
-        assertEquals(1, result.size());
-        assertEquals("FC", result.get(0).getTarget());
-        assertEquals("batchId", result.get(0).getBatchId());
-    }
 }

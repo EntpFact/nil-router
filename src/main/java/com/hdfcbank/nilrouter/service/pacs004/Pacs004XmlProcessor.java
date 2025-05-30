@@ -51,6 +51,7 @@ public class Pacs004XmlProcessor {
 
     @Autowired
     UtilityMethods utilityMethods;
+
     @Autowired
     KafkaUtils kafkautils;
 
@@ -63,6 +64,9 @@ public class Pacs004XmlProcessor {
 
     @Value("${topic.sfmstopic}")
     private String sfmstopic;
+
+    @Value("${topic.msgeventtrackertopic}")
+    private String msgEventTrackerTopic;
 
     @Autowired
     AuditService outwardService;
@@ -106,6 +110,8 @@ public class Pacs004XmlProcessor {
                 json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(wrapper);
 
                 // Send json to Message Tracker service
+
+                kafkautils.publishToResponseTopic(json, msgEventTrackerTopic);
 
 
             } catch (JsonProcessingException e) {
@@ -298,11 +304,13 @@ public class Pacs004XmlProcessor {
             System.out.println(json);
 
 
-            // Send json to Message Tracker service
-
             List<TransactionAudit> transactionAudits = extractPacs004Transactions(document, xml, pacs004);
 
             dao.saveAllTransactionAudits(transactionAudits);
+
+            // Send json to Message Tracker service
+            kafkautils.publishToResponseTopic(json, msgEventTrackerTopic);
+
 
         } catch (Exception e) {
             e.printStackTrace();

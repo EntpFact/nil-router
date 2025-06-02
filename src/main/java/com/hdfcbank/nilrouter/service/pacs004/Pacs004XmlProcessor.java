@@ -74,8 +74,8 @@ public class Pacs004XmlProcessor {
     @ServiceActivator(inputChannel = "pacs004")
     public void parseXml(String xmlString) throws Exception {
 
-        if (utilityMethods.isOutward(xmlString)) {
-            outwardService.auditData(xmlString);
+       if (utilityMethods.isOutward(xmlString)) {
+           // outwardService.auditData(xmlString);
 
             String json = null;
 
@@ -202,19 +202,7 @@ public class Pacs004XmlProcessor {
                 outputDocString = documentToXml(document);
                 log.info("FC  : {}", outputDocString);
 
-                MsgEventTracker tracker = new MsgEventTracker();
-                tracker.setMsgId(utilityMethods.getBizMsgIdr(document));
-                tracker.setSource("NIL");
-                tracker.setTarget("FC");
-                tracker.setFlowType("Inward");
-                tracker.setIntermediateReq("XML");
-                tracker.setIntermediateCount(fcCount);
-                tracker.setOrgnlReqCount(orgnlItmAndStsList.getLength());
-                tracker.setConsolidateAmt(BigDecimal.valueOf(consolidateAmountFC));
-                tracker.setMsgType(utilityMethods.getMsgDefIdr(document));
-                tracker.setOrgnlReq(xml);
                 fcPresent = true;
-                dao.saveDataInMsgEventTracker(tracker);
                 kafkautils.publishToResponseTopic(xml, fcTopic);
 
             } else if (!has0to4 && has5to9) {
@@ -222,20 +210,7 @@ public class Pacs004XmlProcessor {
                 outputDocString = documentToXml(outputDoc);
                 log.info("EPH : {}", outputDocString);
 
-                MsgEventTracker tracker = new MsgEventTracker();
-                tracker.setMsgId(utilityMethods.getBizMsgIdr(document));
-                tracker.setSource("NIL");
-                tracker.setTarget("EPH");
-                tracker.setFlowType("Inward");
-
-                tracker.setIntermediateReq("XML");
-                tracker.setIntermediateCount(ephCount);
-                tracker.setOrgnlReqCount(orgnlItmAndStsList.getLength());
-                tracker.setConsolidateAmt(BigDecimal.valueOf(consolidateAmountEPH));
-                tracker.setMsgType(utilityMethods.getMsgDefIdr(document));
-                tracker.setOrgnlReq(xml);
                 ephPresent = true;
-                dao.saveDataInMsgEventTracker(tracker);
                 kafkautils.publishToResponseTopic(xml, ephTopic);
             } else if (has0to4 && has5to9) {
                 Document outputDoc1 = filterOrgnlItmAndSts(document, 0, 4, fcCount, consolidateAmountFC);
@@ -245,33 +220,9 @@ public class Pacs004XmlProcessor {
                 outputDocString1 = documentToXml(outputDoc2);
                 log.info("EPH : {}", outputDocString1);
 
-                MsgEventTracker fcTracker = new MsgEventTracker();
-                fcTracker.setMsgId(utilityMethods.getBizMsgIdr(document));
-                fcTracker.setSource("NIL");
-                fcTracker.setTarget("FC");
-                fcTracker.setFlowType("Inward");
-                fcTracker.setMsgType(utilityMethods.getMsgDefIdr(document));
-                fcTracker.setOrgnlReq(xml);
-                fcTracker.setConsolidateAmt(BigDecimal.valueOf(consolidateAmountFC));
-                fcTracker.setIntermediateReq(outputDocString);
-                fcTracker.setOrgnlReqCount(pacs004.size());
-                fcTracker.setIntermediateCount(fcCount);
                 kafkautils.publishToResponseTopic(outputDocString, fcTopic);
 
-                MsgEventTracker ephTracker = new MsgEventTracker();
-                ephTracker.setMsgId(utilityMethods.getBizMsgIdr(document));
-                ephTracker.setSource("NIL");
-                ephTracker.setTarget("EPH");
-                ephTracker.setFlowType("Inward");
-                ephTracker.setMsgType(utilityMethods.getMsgDefIdr(document));
-                ephTracker.setConsolidateAmt(BigDecimal.valueOf(consolidateAmountEPH));
-                ephTracker.setOrgnlReq(xml);
-                ephTracker.setIntermediateReq(outputDocString1);
-                ephTracker.setOrgnlReqCount(pacs004.size());
-                ephTracker.setIntermediateCount(ephCount);
                 fcAndEphPresent = true;
-                dao.saveDataInMsgEventTracker(fcTracker);
-                dao.saveDataInMsgEventTracker(ephTracker);
                 kafkautils.publishToResponseTopic(outputDocString1, ephTopic);
             }
             Header header = new Header();
@@ -304,10 +255,6 @@ public class Pacs004XmlProcessor {
             System.out.println(json);
 
 
-            List<TransactionAudit> transactionAudits = extractPacs004Transactions(document, xml, pacs004);
-
-            dao.saveAllTransactionAudits(transactionAudits);
-
             // Send json to Message Tracker service
             kafkautils.publishToResponseTopic(json, msgEventTrackerTopic);
 
@@ -317,30 +264,6 @@ public class Pacs004XmlProcessor {
         }
     }
 
-    public List<TransactionAudit> extractPacs004Transactions(Document originalDoc, String xml, List<Pacs004Fields> pacs004FieldsFields) throws XPathExpressionException {
-        List<TransactionAudit> listOfTransactions = new ArrayList<>();
-
-        String msgId = utilityMethods.getMsgDefIdr(originalDoc);
-
-        for (Pacs004Fields pacs004 : pacs004FieldsFields) {
-
-            TransactionAudit transaction = new TransactionAudit();
-            transaction.setMsgId(utilityMethods.getBizMsgIdr(originalDoc));
-            transaction.setEndToEndId(pacs004.getEndToEndId());
-            transaction.setTxnId(pacs004.getTxId());
-            transaction.setMsgType("pacs.004.001.10");
-            transaction.setSource("NIL");
-            transaction.setBatchId(pacs004.getBatchId());
-            double d = Double.parseDouble(pacs004.getAmount());
-            transaction.setAmount(BigDecimal.valueOf(d));
-            transaction.setTarget(pacs004.getSwtch());
-            transaction.setFlowType("Inward");
-            transaction.setReqPayload(xml);
-
-            listOfTransactions.add(transaction);
-        }
-        return listOfTransactions;
-    }
 
 
     private static Document filterOrgnlItmAndSts(Document document, int minDigit, int maxDigit, int count, double total) throws Exception {

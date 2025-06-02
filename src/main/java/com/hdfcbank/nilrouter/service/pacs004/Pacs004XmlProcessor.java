@@ -74,8 +74,8 @@ public class Pacs004XmlProcessor {
     @ServiceActivator(inputChannel = "pacs004")
     public void parseXml(String xmlString) throws Exception {
 
-        if (utilityMethods.isOutward(xmlString)) {
-            outwardService.auditData(xmlString);
+       if (utilityMethods.isOutward(xmlString)) {
+           // outwardService.auditData(xmlString);
 
             String json = null;
 

@@ -49,43 +49,6 @@ public class AuditServiceTest {
         assertDoesNotThrow(() -> auditService.auditData(invalidXml));
         verify(nilRepository, never()).saveAllTransactionAudits(any());
     }
-//    @Test
-    public void testAuditData_ForPacs004() throws Exception {
-        String xml = appHdr + pacs004Xml;
-
-        Map<String, String> xPathMap = new HashMap<>();
-        xPathMap.put("pacs.004.001.10", "//*[local-name()='CdtTrfTxInf']");
-        when(xPathConfig.getMappings()).thenReturn(xPathMap);
-
-        auditService.auditData(xml);
-
-//        ArgumentCaptor<List<TransactionAudit>> captor = ArgumentCaptor.forClass(List.class);
-//        verify(nilRepository).saveAllTransactionAudits(captor.capture());
-
-//        List<TransactionAudit> audits = captor.getValue();
-//        assertEquals(1, audits.size());
-//        TransactionAudit tx = audits.get(0);
-//        assertEquals("MSG123", tx.getMsgId());
-//        assertEquals("E2E123", tx.getEndToEndId());
-//        assertEquals("TX123", tx.getTxnId());
-//        assertEquals(new BigDecimal("1000.00"), tx.getAmount());
-//        assertEquals("Batch001", tx.getBatchId());
-    }
-
-//    @Test
-    public void testConstructOutwardJsonAndPublish() throws Exception {
-        String xml = appHdr + pacs004Xml;
-
-        when(utilityMethods.getBizMsgIdr(any())).thenReturn("MSG123");
-        when(utilityMethods.getMsgDefIdr(any())).thenReturn("pacs.004.001.10");
-        when(utilityMethods.getTotalAmount(any())).thenReturn(new BigDecimal("1000.00"));
-
-        auditService.constructOutwardJsonAndPublish(xml);
-
-//        verify(kafkaUtils).publishToResponseTopic(contains("MSG123"), eq("test-topic"));
-    }
-
-
 
     private final String pacs004Xml = """
                 <Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.004.001.10">

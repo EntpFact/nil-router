@@ -7,7 +7,7 @@ import java.util.Map;
 
 @Component
 @ConfigurationProperties(prefix = "message.xpath")
-public class MessageXPathConfig {
+public class MsgXPathConfig {
     private Map<String, String> mappings;
 
     public Map<String, String> getMappings() {

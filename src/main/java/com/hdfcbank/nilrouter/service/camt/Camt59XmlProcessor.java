@@ -9,7 +9,6 @@ import com.hdfcbank.nilrouter.model.Body;
 import com.hdfcbank.nilrouter.model.Camt59Fields;
 import com.hdfcbank.nilrouter.model.Header;
 import com.hdfcbank.nilrouter.model.MessageEventTracker;
-import com.hdfcbank.nilrouter.service.AuditService;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,9 +68,6 @@ public class Camt59XmlProcessor {
     UtilityMethods utilityMethods;
 
     @Autowired
-    AuditService auditService;
-
-    @Autowired
     KafkaUtils kafkaUtils;
 
     @ServiceActivator(inputChannel = "camt59")
@@ -85,8 +81,11 @@ public class Camt59XmlProcessor {
                 DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
                 factory.setNamespaceAware(true);
                 DocumentBuilder builder = factory.newDocumentBuilder();
-
                 Document document = builder.parse(new InputSource(new StringReader(xml)));
+
+                XPath xpath = XPathFactory.newInstance().newXPath();
+                NodeList txNodes = (NodeList) xpath.evaluate("//*[local-name()='OrgnlNtfctnRef']", document, XPathConstants.NODESET);
+
                 Header header = new Header();
                 header.setMsgId(utilityMethods.getBizMsgIdr(document));
                 header.setSource(NIL);
@@ -96,6 +95,7 @@ public class Camt59XmlProcessor {
                 header.setTargetSFMS(true);
                 header.setFlowType(OUTWARD);
                 header.setMsgType(utilityMethods.getMsgDefIdr(document));
+                header.setOrignlReqCount(txNodes.getLength());
 
                 Body body = new Body();
                 body.setReqPayload(xml);
@@ -171,11 +171,11 @@ public class Camt59XmlProcessor {
                 if (digit >= 0 && digit <= 4) {
                     has0to4 = true;
                     fcCount++;
-                    camt59.add(new Camt59Fields(bizMsgIdr, orgnlEndToEndId, orgnlItmId, "FC"));
+                    camt59.add(new Camt59Fields(bizMsgIdr, orgnlEndToEndId, orgnlItmId, FC));
                 } else if (digit >= 5 && digit <= 9) {
                     has5to9 = true;
                     ephCount++;
-                    camt59.add(new Camt59Fields(bizMsgIdr, orgnlEndToEndId, orgnlItmId, "EPH"));
+                    camt59.add(new Camt59Fields(bizMsgIdr, orgnlEndToEndId, orgnlItmId, EPH));
                 }
             }
 

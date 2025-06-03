@@ -8,7 +8,7 @@ import java.util.Map;
 
 @Configuration
 @ConfigurationProperties(prefix = "routing")
-public class RoutingProperties {
+public class MsgMappings {
 
     private String header;
     private Map<String, String> mappings;

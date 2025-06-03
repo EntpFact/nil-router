@@ -39,6 +39,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.hdfcbank.nilrouter.utils.Constants.*;
+
 
 @Slf4j
 @Service
@@ -75,8 +77,6 @@ public class Pacs004XmlProcessor {
     public void parseXml(String xmlString) throws Exception {
 
        if (utilityMethods.isOutward(xmlString)) {
-           // outwardService.auditData(xmlString);
-
             String json = null;
 
             try {
@@ -87,12 +87,12 @@ public class Pacs004XmlProcessor {
                 Document document = builder.parse(new InputSource(new StringReader(xmlString)));
                 Header header = new Header();
                 header.setMsgId(utilityMethods.getBizMsgIdr(document));
-                header.setSource("NIL");
+                header.setSource(NIL);
                 header.setTargetFC(false);
                 header.setTargetEPH(false);
                 header.setTargetFCEPH(false);
                 header.setTargetSFMS(true);
-                header.setFlowType("Outward");
+                header.setFlowType(OUTWARD);
                 header.setMsgType(utilityMethods.getMsgDefIdr(document));
 
 
@@ -110,7 +110,6 @@ public class Pacs004XmlProcessor {
                 json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(wrapper);
 
                 // Send json to Message Tracker service
-
                 kafkautils.publishToResponseTopic(json, msgEventTrackerTopic);
 
 
@@ -125,7 +124,7 @@ public class Pacs004XmlProcessor {
             } catch (XPathExpressionException e) {
                 throw new RuntimeException(e);
             }
-            System.out.println(json);
+           log.info("Pacs04 Outward : {}", json);
 
 
             //Send to SFMS
@@ -185,12 +184,12 @@ public class Pacs004XmlProcessor {
                     has0to4 = true;
                     consolidateAmountFC = consolidateAmountFC + Double.parseDouble(amount);
                     fcCount++;
-                    pacs004.add(new Pacs004Fields(bizMsgIdr, orgnlEndToEndId, orgnlItmId, amount, "FC", batchIdValue));
+                    pacs004.add(new Pacs004Fields(bizMsgIdr, orgnlEndToEndId, orgnlItmId, amount, FC, batchIdValue));
                 } else if (digit >= 5 && digit <= 9) {
                     has5to9 = true;
                     ephCount++;
                     consolidateAmountEPH += Double.parseDouble(amount);
-                    pacs004.add(new Pacs004Fields(bizMsgIdr, orgnlEndToEndId, orgnlItmId, amount, "EPH", batchIdValue));
+                    pacs004.add(new Pacs004Fields(bizMsgIdr, orgnlEndToEndId, orgnlItmId, amount, EPH, batchIdValue));
                 }
             }
 
@@ -203,7 +202,7 @@ public class Pacs004XmlProcessor {
                 log.info("FC  : {}", outputDocString);
 
                 fcPresent = true;
-                kafkautils.publishToResponseTopic(xml, fcTopic);
+                kafkautils.publishToResponseTopic(outputDocString, fcTopic);
 
             } else if (!has0to4 && has5to9) {
                 Document outputDoc = filterOrgnlItmAndSts(document, 5, 9, ephCount, consolidateAmountEPH);
@@ -211,7 +210,7 @@ public class Pacs004XmlProcessor {
                 log.info("EPH : {}", outputDocString);
 
                 ephPresent = true;
-                kafkautils.publishToResponseTopic(xml, ephTopic);
+                kafkautils.publishToResponseTopic(outputDocString, ephTopic);
             } else if (has0to4 && has5to9) {
                 Document outputDoc1 = filterOrgnlItmAndSts(document, 0, 4, fcCount, consolidateAmountFC);
                 Document outputDoc2 = filterOrgnlItmAndSts(document, 5, 9, ephCount, consolidateAmountEPH);
@@ -227,13 +226,12 @@ public class Pacs004XmlProcessor {
             }
             Header header = new Header();
             header.setMsgId(utilityMethods.getBizMsgIdr(document));
-            header.setSource("NIL");
+            header.setSource(NIL);
             header.setTargetFC(fcPresent);
             header.setTargetEPH(ephPresent);
             header.setTargetFCEPH(fcAndEphPresent);
-            header.setFlowType("Inward");
+            header.setFlowType(INWARD);
             header.setMsgType(utilityMethods.getMsgDefIdr(document));
-            header.setBatchId(!pacs004.isEmpty() ? pacs004.get(0).getBatchId() : null);
             header.setOrignlReqCount(pacs004.size());
             header.setConsolidateAmt(BigDecimal.valueOf(consolidateAmountEPH + consolidateAmountFC));
             header.setConsolidateAmtEPH(BigDecimal.valueOf(consolidateAmountEPH));
@@ -252,8 +250,7 @@ public class Pacs004XmlProcessor {
 
             ObjectMapper mapper = new ObjectMapper();
             String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(wrapper);
-            System.out.println(json);
-
+            log.info("Pacs04 Inward : {}", json);
 
             // Send json to Message Tracker service
             kafkautils.publishToResponseTopic(json, msgEventTrackerTopic);

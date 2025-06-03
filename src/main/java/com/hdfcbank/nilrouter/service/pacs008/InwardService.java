@@ -6,7 +6,6 @@ import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
 import com.hdfcbank.nilrouter.model.Body;
 import com.hdfcbank.nilrouter.model.Header;
 import com.hdfcbank.nilrouter.model.MessageEventTracker;
-import com.hdfcbank.nilrouter.model.TransactionAudit;
 import com.hdfcbank.nilrouter.utils.Constants;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,7 +64,6 @@ public class InwardService {
         String msgType = utilityMethods.getMsgDefIdr(originalDoc);
         BigDecimal totalAmount = utilityMethods.getTotalAmount(originalDoc);
         NodeList txNodes = (NodeList) xpath.evaluate("//*[local-name()='CdtTrfTxInf']", originalDoc, XPathConstants.NODESET);
-        List<TransactionAudit> listOfTransactions = new ArrayList<>();
 
         String substring = msgId.substring(4);
         BigInteger numericMsgId = new BigInteger(substring);

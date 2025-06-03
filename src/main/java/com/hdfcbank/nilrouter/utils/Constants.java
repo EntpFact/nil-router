@@ -7,5 +7,7 @@ public class Constants {
     public static final String NIL = "NIL";
     public static final String INWARD = "Inward";
 	public static final String OUTWARD = "Outward";
-	public static final String SFMS = "SFMS";
+    public static final String FC = "FC";
+    public static final String EPH = "EPH";
+    public static final String RECEIVED = "RECEIVED";
 }

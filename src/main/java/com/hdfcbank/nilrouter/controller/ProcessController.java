@@ -1,8 +1,11 @@
 package com.hdfcbank.nilrouter.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hdfcbank.nilrouter.exception.NILException;
 import com.hdfcbank.nilrouter.model.Response;
+import com.hdfcbank.nilrouter.service.AuditService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -23,8 +26,6 @@ import java.io.ByteArrayInputStream;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
 
 @Slf4j
 @RestController
@@ -32,6 +33,9 @@ public class ProcessController {
 
     @Autowired
     private MessageChannel routingChannel;
+
+    @Autowired
+    AuditService auditService;
 
     @CrossOrigin
     @GetMapping(path = "/healthz")
@@ -48,13 +52,15 @@ public class ProcessController {
 
     @CrossOrigin
     @PostMapping("/process")
-    public Mono<ResponseEntity<Response>> process(@RequestBody Map<String, Object> cloudEvent) throws JsonProcessingException {
+    public Mono<ResponseEntity<Response>> process(@RequestBody String request) throws JsonProcessingException {
         log.info("....Processing Started.... ");
         return Mono.fromCallable(() -> {
-            Map<String, String> payloadMap = new HashMap<>();
             try {
                 // Get base64 encoded data
-                String xmlString = validateXml(cloudEvent);
+                String xmlString = validateXml(request);
+
+                // Audit Incoming message
+                auditService.auditIncomingMessage(xmlString);
 
                 // Process the XML message
                 routingChannel.send(MessageBuilder.withPayload(xmlString).build()
@@ -73,10 +79,11 @@ public class ProcessController {
     }
 
 
-    private String validateXml(Map<String, Object> cloudEvent) {
-        String base64Data = (String) cloudEvent.get("data_base64");
+    private String validateXml(String request) throws JsonProcessingException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        JsonNode rootNode = objectMapper.readTree(request);
 
-        // Decode base64 data to XML message
+        String base64Data = rootNode.get("data_base64").asText();
         String xmlMessage = new String(Base64.getDecoder().decode(base64Data), StandardCharsets.UTF_8);
 
         // Remove BOM if exists and trim any extra whitespace
@@ -116,7 +123,7 @@ public class ProcessController {
             return xml.substring(1);
         }
         // Sometimes BOM shows up as a junk character like �, remove non-printables too
-        return xml.replaceAll("^[^\\x20-\\x7E<]+", "");  // Removes any non-XML leading junk
+        return xml.replaceAll("^[^<]+", "");  // Removes any non-XML leading junk
     }
 
 
@@ -127,9 +134,11 @@ public class ProcessController {
         log.info("....Processing Started.... ");
 
         return Mono.fromCallable(() -> {
-            Map<String, String> payloadMap = new HashMap<>();
             try {
-                String xmlMessage = request;
+
+                // Audit Incoming message
+                auditService.auditIncomingMessage(request);
+
                 //log.info("Request data--{}", xmlMessage);
                 routingChannel.send(MessageBuilder.withPayload(request).build());
 

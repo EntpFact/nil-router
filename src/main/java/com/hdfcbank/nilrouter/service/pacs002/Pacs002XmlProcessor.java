@@ -37,8 +37,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static com.hdfcbank.nilrouter.utils.Constants.INWARD;
-import static com.hdfcbank.nilrouter.utils.Constants.NIL;
+import static com.hdfcbank.nilrouter.utils.Constants.*;
 
 
 @Slf4j
@@ -108,22 +107,22 @@ public class Pacs002XmlProcessor {
                 if (digit >= 0 && digit <= 4) {
                     has0to4 = true;
                     fcCount++;
-                    pacs002.add(new Pacs002Fields(bizMsgIdr, orgnlEndToEndId, orgnlTxId, "FC"));
+                    pacs002.add(new Pacs002Fields(bizMsgIdr, orgnlEndToEndId, orgnlTxId, FC));
                 } else if (digit >= 5 && digit <= 9) {
                     has5to9 = true;
                     ephCount++;
-                    pacs002.add(new Pacs002Fields(bizMsgIdr, orgnlEndToEndId, orgnlTxId, "EPH"));
+                    pacs002.add(new Pacs002Fields(bizMsgIdr, orgnlEndToEndId, orgnlTxId, EPH));
                 } else if (digit == -1) {
                     // Check DB for the Pacs08 Inward Transaction by txn ID
                     String target = dao.findTargetByTxnId(orgnlTxId);
-                    if ("FC".equalsIgnoreCase(target)) {
+                    if (FC.equalsIgnoreCase(target)) {
                         has0to4 = true;
                         fcCount++;
-                        pacs002.add(new Pacs002Fields(bizMsgIdr, orgnlEndToEndId, orgnlTxId, "FC"));
-                    } else if ("EPH".equalsIgnoreCase(target)) {
+                        pacs002.add(new Pacs002Fields(bizMsgIdr, orgnlEndToEndId, orgnlTxId, FC));
+                    } else if (EPH.equalsIgnoreCase(target)) {
                         has5to9 = true;
                         ephCount++;
-                        pacs002.add(new Pacs002Fields(bizMsgIdr, orgnlEndToEndId, orgnlTxId, "EPH"));
+                        pacs002.add(new Pacs002Fields(bizMsgIdr, orgnlEndToEndId, orgnlTxId, EPH));
                     } else {
                         log.warn("Unknown target for txn ID: {}", orgnlTxId);
                     }
@@ -140,7 +139,7 @@ public class Pacs002XmlProcessor {
                 fcPresent = true;
 
                 //Send to FC TOPIC
-                kafkaUtils.publishToResponseTopic(xml, fcTopic);
+                kafkaUtils.publishToResponseTopic(fcOutputDocString, fcTopic);
 
             } else if (!has0to4 && has5to9) {
                 ephOutputDoc = filterTxInfAndSts(document, 5, 9);
@@ -151,7 +150,7 @@ public class Pacs002XmlProcessor {
 
 
                 //Send to EPH TOPIC
-                kafkaUtils.publishToResponseTopic(xml, ephTopic);
+                kafkaUtils.publishToResponseTopic(ephOutputDocString, ephTopic);
 
             } else if (has0to4 && has5to9) {
                 fcOutputDoc = filterTxInfAndSts(document, 0, 4);
@@ -256,9 +255,9 @@ public class Pacs002XmlProcessor {
             int digit = extractOrgnlItmIdDigit(orgnlTxId);
             if (digit == -1) {
                 String target = dao.findTargetByTxnId(orgnlTxId);
-                if ("FC".equalsIgnoreCase(target)) {
+                if (FC.equalsIgnoreCase(target)) {
                     digit = 0; // Mark as acceptable for 0–4
-                } else if ("EPH".equalsIgnoreCase(target)) {
+                } else if (EPH.equalsIgnoreCase(target)) {
                     digit = 9; // Mark as acceptable for 5–9
                 }
             }

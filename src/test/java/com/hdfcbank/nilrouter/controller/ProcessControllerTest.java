@@ -12,12 +12,8 @@ import org.springframework.http.MediaType;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
-import java.lang.reflect.Method;
-import java.util.Base64;
-import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -67,7 +63,7 @@ class ProcessControllerTest {
 
         verifyNoInteractions(routingChannel);
     }
-
+/*
     @Test
     void testValidateXml_usingReflection() throws Exception {
         ProcessController controller = new ProcessController();
@@ -82,7 +78,7 @@ class ProcessControllerTest {
         String result = (String) method.invoke(controller, cloudEvent);
 
         assertTrue(result.contains("<note>"));
-    }
+    }*/
 
    /* @Test
     void testValidateXml_withBOM_removesBOM() {

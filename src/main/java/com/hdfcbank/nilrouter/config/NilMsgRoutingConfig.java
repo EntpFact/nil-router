@@ -21,12 +21,12 @@ import java.io.StringReader;
 
 @Slf4j
 @Configuration
-public class RouterConfig {
+public class NilMsgRoutingConfig {
 
-    private final RoutingProperties routingProperties;
+    private final MsgMappings msgMappings;
 
-    public RouterConfig(RoutingProperties routingProperties) {
-        this.routingProperties = routingProperties;
+    public NilMsgRoutingConfig(MsgMappings msgMappings) {
+        this.msgMappings = msgMappings;
     }
 
     @Bean
@@ -84,8 +84,8 @@ public class RouterConfig {
 
     @Bean
     public HeaderValueRouter router() {
-        HeaderValueRouter router = new HeaderValueRouter(routingProperties.getHeader());
-        routingProperties.getMappings().forEach(router::setChannelMapping);
+        HeaderValueRouter router = new HeaderValueRouter(msgMappings.getHeader());
+        msgMappings.getMappings().forEach(router::setChannelMapping);
         return router;
     }
 

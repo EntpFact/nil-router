@@ -2,7 +2,6 @@ package com.hdfcbank.nilrouter.service.pacs004;
 
 import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
-import com.hdfcbank.nilrouter.model.Pacs004Fields;
 import com.hdfcbank.nilrouter.service.AuditService;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,9 +14,7 @@ import org.w3c.dom.Document;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
@@ -54,7 +51,6 @@ public class Pacs004XmlProcessorTest {
         when(utilityMethods.isOutward(xml)).thenReturn(true);
         when(utilityMethods.getBizMsgIdr(any())).thenReturn("ID123");
         when(utilityMethods.getMsgDefIdr(any())).thenReturn("pacs.004.001.10");
-        doNothing().when(outwardService).auditData(any());
 
         processor.parseXml(xml);
 //        outwardService.auditData(xml);

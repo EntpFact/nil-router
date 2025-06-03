@@ -20,7 +20,6 @@ public class Header {
     private boolean targetSFMS;
     private String flowType;
     private String msgType;
-    private String batchId;
     private int orignlReqCount;
     private int intermediateReqFCCount;
     private int intermediateReqEPHCount;

@@ -46,6 +46,12 @@ public class InwardService {
     @Value("${topic.msgeventtrackertopic}")
     private String msgEventTrackerTopic;
 
+    @Value("${topic.fctopic}")
+    private String fcTopic;
+
+    @Value("${topic.ephtopic}")
+    private String ephTopic;
+
     @Autowired
     private UtilityMethods utilityMethods;
 
@@ -108,6 +114,17 @@ public class InwardService {
 
 
         kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
+
+        if(fcPresent)
+        {
+            kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getFcPayload(), fcTopic);
+
+        }
+        else
+        {
+            kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getEphPayload(), ephTopic);
+
+        }
 
 
     }
@@ -239,6 +256,17 @@ public class InwardService {
 
         kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
 
+        if(hasFC)
+        {
+            kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getFcPayload(), fcTopic);
+
+        }
+
+        if(hasEPH)
+        {
+            kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getEphPayload(), ephTopic);
+
+        }
     }
 
 

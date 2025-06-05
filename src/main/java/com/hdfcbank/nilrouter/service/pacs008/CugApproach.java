@@ -41,6 +41,12 @@ public class CugApproach {
     @Value("${topic.msgeventtrackertopic}")
     private String msgEventTrackerTopic;
 
+    @Value("${topic.fctopic}")
+    private String fcTopic;
+
+    @Value("${topic.ephtopic}")
+    private String ephTopic;
+
     @Autowired
     private UtilityMethods utilityMethods;
 
@@ -130,6 +136,18 @@ public class CugApproach {
         String messageEventTrackerJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
 
         kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
+
+        if(fcPresent)
+        {
+            kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getFcPayload(), fcTopic);
+
+        }
+
+        if(ephPresent)
+        {
+            kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getEphPayload(), ephTopic);
+
+        }
 
 
     }

@@ -47,6 +47,9 @@ public class AuditService {
     @Value("${topic.msgeventtrackertopic}")
     private String msgEventTrackerTopic;
 
+    @Value("${topic.sfmstopic}")
+    private String sfmsTopic;
+
 
     public MsgEventTracker auditIncomingMessage(String xml) {
         MsgEventTracker msgEventTracker = new MsgEventTracker();
@@ -98,6 +101,9 @@ public class AuditService {
         String messageEventTrackerJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
 
         kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
+
+        kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getReqPayload(), sfmsTopic);
+
 
     }
 

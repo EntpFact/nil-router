@@ -18,6 +18,8 @@ import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathFactory;
 import java.io.StringReader;
+import java.util.HashMap;
+import java.util.Map;
 
 
 @Service
@@ -42,22 +44,25 @@ public class Pacs008XmlProcessor {
     @Autowired
     private UtilityMethods utilityMethods;
 
-    @ServiceActivator(inputChannel = "pacs008")
-    public void parseXml(String xmlString) throws Exception {
-
+    //@ServiceActivator(inputChannel = "pacs008")
+    @ServiceActivator(inputChannel = "pacs008", outputChannel = "replyChannel")
+    public Map<String, String> parseXml(String xmlString) throws Exception {
+        Map<String, String> map = new HashMap<>();
         if (utilityMethods.isOutward(xmlString)) {
-            auditService.constructOutwardJsonAndPublish(xmlString);
+           map = auditService.constructOutwardJsonAndPublish(xmlString);
         } else {
             if (cugFlag.equalsIgnoreCase("true")) {
-                cugApproach.processCugApproach(xmlString);
+                map =  cugApproach.processCugApproach(xmlString);
             } else {
                 if (containsReturnTags(xmlString)) {
-                    inwardService.processLateReturn(xmlString);
+                   map = inwardService.processLateReturn(xmlString);
                 } else {
-                    inwardService.processFreshInward(xmlString);
+                    map =   inwardService.processFreshInward(xmlString);
                 }
             }
         }
+
+        return map;
     }
 
     public boolean containsReturnTags(String xmlPayload) throws Exception {

@@ -20,6 +20,8 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathFactory;
 import java.io.StringReader;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 public class AdmiXmlProcessor {
@@ -39,8 +41,9 @@ public class AdmiXmlProcessor {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @ServiceActivator(inputChannel = "admi004")
-    public void parseXml(String xmlString) throws Exception {
+    @ServiceActivator(inputChannel = "admi004", outputChannel = "replyChannel")
+    public Map<String, String> parseXml(String xmlString) throws Exception {
+        Map<String, String> map = new HashMap<>();
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         dbFactory.setNamespaceAware(true);
         DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
@@ -93,8 +96,9 @@ public class AdmiXmlProcessor {
 
         String messageEventTrackerJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
 
-        kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
+        //kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
+        map.put("MET",messageEventTrackerJson);
 
-
+        return map;
     }
 }

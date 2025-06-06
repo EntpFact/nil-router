@@ -35,7 +35,9 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -73,9 +75,9 @@ public class Pacs004XmlProcessor {
     @Autowired
     AuditService outwardService;
 
-    @ServiceActivator(inputChannel = "pacs004")
-    public void parseXml(String xmlString) throws Exception {
-
+    @ServiceActivator(inputChannel = "pacs004", outputChannel = "replyChannel")
+    public Map<String, String> parseXml(String xmlString) throws Exception {
+        Map<String, String> map = new HashMap<>();
        if (utilityMethods.isOutward(xmlString)) {
             String json = null;
 
@@ -110,7 +112,8 @@ public class Pacs004XmlProcessor {
                 json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(wrapper);
 
                 // Send json to Message Tracker service
-                kafkautils.publishToResponseTopic(json, msgEventTrackerTopic);
+                //kafkautils.publishToResponseTopic(json, msgEventTrackerTopic);
+                map.put("MET",json);
 
 
             } catch (JsonProcessingException e) {
@@ -128,16 +131,18 @@ public class Pacs004XmlProcessor {
 
 
             //Send to SFMS
-            kafkautils.publishToResponseTopic(xmlString, sfmstopic);
+            //kafkautils.publishToResponseTopic(xmlString, sfmstopic);
+           map.put("SFMS",xmlString);
 
         } else {
-            processXML(xmlString);
+          map =  processXML(xmlString);
         }
-
+        return map;
     }
 
-    public void processXML(String xml) {
+    public Map<String, String> processXML(String xml) {
         List<Pacs004Fields> pacs004 = new ArrayList<>();
+        Map<String, String> map = new HashMap<>();
         String bizMsgIdr = null, orgnlItmId = null, orgnlEndToEndId = null;
         try {
 
@@ -202,7 +207,8 @@ public class Pacs004XmlProcessor {
                 log.info("FC  : {}", outputDocString);
 
                 fcPresent = true;
-                kafkautils.publishToResponseTopic(outputDocString, fcTopic);
+                //kafkautils.publishToResponseTopic(outputDocString, fcTopic);
+                map.put("FC",outputDocString);
 
             } else if (!has0to4 && has5to9) {
                 Document outputDoc = filterOrgnlItmAndSts(document, 5, 9, ephCount, consolidateAmountEPH);
@@ -210,7 +216,8 @@ public class Pacs004XmlProcessor {
                 log.info("EPH : {}", outputDocString);
 
                 ephPresent = true;
-                kafkautils.publishToResponseTopic(outputDocString, ephTopic);
+                //kafkautils.publishToResponseTopic(outputDocString, ephTopic);
+                map.put("EPH",outputDocString);
             } else if (has0to4 && has5to9) {
                 Document outputDoc1 = filterOrgnlItmAndSts(document, 0, 4, fcCount, consolidateAmountFC);
                 Document outputDoc2 = filterOrgnlItmAndSts(document, 5, 9, ephCount, consolidateAmountEPH);
@@ -219,10 +226,13 @@ public class Pacs004XmlProcessor {
                 outputDocString1 = documentToXml(outputDoc2);
                 log.info("EPH : {}", outputDocString1);
 
-                kafkautils.publishToResponseTopic(outputDocString, fcTopic);
+                //kafkautils.publishToResponseTopic(outputDocString, fcTopic);
 
                 fcAndEphPresent = true;
-                kafkautils.publishToResponseTopic(outputDocString1, ephTopic);
+                //kafkautils.publishToResponseTopic(outputDocString1, ephTopic);
+                map.put("FC",outputDocString);
+                map.put("EPH",outputDocString1);
+
             }
             Header header = new Header();
             header.setMsgId(utilityMethods.getBizMsgIdr(document));
@@ -253,12 +263,13 @@ public class Pacs004XmlProcessor {
             log.info("Pacs04 Inward : {}", json);
 
             // Send json to Message Tracker service
-            kafkautils.publishToResponseTopic(json, msgEventTrackerTopic);
-
+            //kafkautils.publishToResponseTopic(json, msgEventTrackerTopic);
+            map.put("MET",json);
 
         } catch (Exception e) {
             e.printStackTrace();
         }
+        return map;
     }
 
 

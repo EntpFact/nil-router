@@ -38,7 +38,9 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -70,9 +72,9 @@ public class Camt59XmlProcessor {
     @Autowired
     KafkaUtils kafkaUtils;
 
-    @ServiceActivator(inputChannel = "camt59")
-    public void processXML(String xml) {
-
+    @ServiceActivator(inputChannel = "camt59", outputChannel = "replyChannel")
+    public Map<String, String> processXML(String xml) {
+        Map<String, String> map = new HashMap<>();
         if (utilityMethods.isOutward(xml)) {
 
             String json = null;
@@ -125,18 +127,21 @@ public class Camt59XmlProcessor {
             }
 
             // Send to message-event-tracker-service topic
-            kafkaUtils.publishToResponseTopic(json, msgEventTrackerTopic);
+            //kafkaUtils.publishToResponseTopic(json, msgEventTrackerTopic);
+            map.put("MET",json);
             //Send to SFMS
-            kafkaUtils.publishToResponseTopic(xml, sfmsTopic);
+            //kafkaUtils.publishToResponseTopic(xml, sfmsTopic);
+            map.put("SFMS",json);
 
         } else {
-            processCamt59InwardMessage(xml);
+         map =   processCamt59InwardMessage(xml);
         }
+        return map;
     }
 
-    private void processCamt59InwardMessage(String xml) {
+    private Map<String, String> processCamt59InwardMessage(String xml) {
         List<Camt59Fields> camt59 = new ArrayList<>();
-
+        Map<String, String> map = new HashMap<>();
         Document fcOutputDoc, ephOutputDoc;
         String fcOutputDocString = null, ephOutputDocString = null;
 
@@ -188,7 +193,8 @@ public class Camt59XmlProcessor {
 
                 fcPresent = true;
                 //Send to FC TOPIC
-                kafkaUtils.publishToResponseTopic(fcOutputDocString, fcTopic);
+                //kafkaUtils.publishToResponseTopic(fcOutputDocString, fcTopic);
+                map.put("FC",fcOutputDocString);
 
             } else if (!has0to4 && has5to9) {
                 ephOutputDoc = filterOrgnlItmAndSts(document, 5, 9);
@@ -198,7 +204,8 @@ public class Camt59XmlProcessor {
                 ephPresent = true;
 
                 //Send to EPH TOPIC
-                kafkaUtils.publishToResponseTopic(ephOutputDocString, ephTopic);
+                //kafkaUtils.publishToResponseTopic(ephOutputDocString, ephTopic);
+                map.put("EPH",ephOutputDocString);
 
 
             } else if (has0to4 && has5to9) {
@@ -212,9 +219,10 @@ public class Camt59XmlProcessor {
                 fcAndEphPresent = true;
 
                 //Send to FC & EPH TOPIC
-                kafkaUtils.publishToResponseTopic(fcOutputDocString, fcTopic);
-                kafkaUtils.publishToResponseTopic(ephOutputDocString, ephTopic);
-
+                //kafkaUtils.publishToResponseTopic(fcOutputDocString, fcTopic);
+                //kafkaUtils.publishToResponseTopic(ephOutputDocString, ephTopic);
+                map.put("FC",fcOutputDocString);
+                map.put("EPH",ephOutputDocString);
             }
 
 
@@ -244,12 +252,14 @@ public class Camt59XmlProcessor {
             log.info("Camt59 Inward Json : {}", json);
 
             // Send to message-event-tracker-service topic
-            kafkaUtils.publishToResponseTopic(json, msgEventTrackerTopic);
+            //kafkaUtils.publishToResponseTopic(json, msgEventTrackerTopic);
+            map.put("MET",json);
 
 
         } catch (Exception e) {
             log.error(e.toString());
         }
+        return map;
     }
 
 

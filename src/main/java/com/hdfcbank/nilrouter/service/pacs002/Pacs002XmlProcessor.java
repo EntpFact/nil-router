@@ -33,7 +33,9 @@ import javax.xml.xpath.XPathFactory;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -65,9 +67,9 @@ public class Pacs002XmlProcessor {
     @Autowired
     KafkaUtils kafkaUtils;
 
-    @ServiceActivator(inputChannel = "pacs002")
-    public void processXML(String xml) {
-
+    @ServiceActivator(inputChannel = "pacs002", outputChannel = "replyChannel")
+    public Map<String, String> processXML(String xml) {
+        Map<String, String> map = new HashMap<>();
         List<Pacs002Fields> pacs002 = new ArrayList<>();
 
         Document fcOutputDoc;
@@ -139,7 +141,8 @@ public class Pacs002XmlProcessor {
                 fcPresent = true;
 
                 //Send to FC TOPIC
-                kafkaUtils.publishToResponseTopic(fcOutputDocString, fcTopic);
+                //kafkaUtils.publishToResponseTopic(fcOutputDocString, fcTopic);
+                map.put("FC",fcOutputDocString);
 
             } else if (!has0to4 && has5to9) {
                 ephOutputDoc = filterTxInfAndSts(document, 5, 9);
@@ -150,7 +153,8 @@ public class Pacs002XmlProcessor {
 
 
                 //Send to EPH TOPIC
-                kafkaUtils.publishToResponseTopic(ephOutputDocString, ephTopic);
+                //kafkaUtils.publishToResponseTopic(ephOutputDocString, ephTopic);
+                map.put("EPH",ephOutputDocString);
 
             } else if (has0to4 && has5to9) {
                 fcOutputDoc = filterTxInfAndSts(document, 0, 4);
@@ -163,9 +167,10 @@ public class Pacs002XmlProcessor {
                 fcAndEphPresent = true;
 
                 //Send to FC & EPH TOPIC
-                kafkaUtils.publishToResponseTopic(fcOutputDocString, fcTopic);
-                kafkaUtils.publishToResponseTopic(ephOutputDocString, ephTopic);
-
+                //kafkaUtils.publishToResponseTopic(fcOutputDocString, fcTopic);
+                //kafkaUtils.publishToResponseTopic(ephOutputDocString, ephTopic);
+                map.put("FC",fcOutputDocString);
+                map.put("EPH",ephOutputDocString);
             }
 
 
@@ -195,12 +200,14 @@ public class Pacs002XmlProcessor {
             log.info("Pacs002 Inward Json : {}", json);
 
             // Send to message-event-tracker-service topic
-            kafkaUtils.publishToResponseTopic(json, msgEventTrackerTopic);
+            //kafkaUtils.publishToResponseTopic(json, msgEventTrackerTopic);
+            map.put("MET",json);
 
 
         } catch (Exception e) {
             log.error(e.toString());
         }
+        return map;
     }
 
 

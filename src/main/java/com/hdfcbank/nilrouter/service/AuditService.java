@@ -1,7 +1,6 @@
 package com.hdfcbank.nilrouter.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hdfcbank.nilrouter.config.MsgXPathConfig;
 import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
 import com.hdfcbank.nilrouter.model.Body;
@@ -27,6 +26,8 @@ import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.HashMap;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -71,7 +72,8 @@ public class AuditService {
     }
 
 
-    public void constructOutwardJsonAndPublish(String xmlPayload) throws Exception {
+    public Map<String, String> constructOutwardJsonAndPublish(String xmlPayload) throws Exception {
+        Map<String, String> map = new HashMap<>();
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         dbFactory.setNamespaceAware(true);
         DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
@@ -100,10 +102,11 @@ public class AuditService {
 
         String messageEventTrackerJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
 
-        kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
+        //kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
+        map.put("MET",messageEventTrackerJson);
 
-        kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getReqPayload(), sfmsTopic);
-
+        //kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getReqPayload(), sfmsTopic);
+        return map;
 
     }
 

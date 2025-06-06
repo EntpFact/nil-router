@@ -30,7 +30,9 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class CugApproach {
@@ -56,7 +58,8 @@ public class CugApproach {
     @Autowired
     private ObjectMapper objectMapper;
 
-    public void processCugApproach(String xmlPayload) throws Exception {
+    public Map<String, String> processCugApproach(String xmlPayload) throws Exception {
+        Map<String, String> map = new HashMap<>();
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         dbFactory.setNamespaceAware(true);
         DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
@@ -135,20 +138,23 @@ public class CugApproach {
 
         String messageEventTrackerJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
 
-        kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
+        //kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
+        map.put("MET",messageEventTrackerJson);
 
         if(fcPresent)
         {
-            kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getFcPayload(), fcTopic);
+            //kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getFcPayload(), fcTopic);
+            map.put("FC",messageEventTracker.getBody().getFcPayload());
 
         }
 
         if(ephPresent)
         {
-            kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getEphPayload(), ephTopic);
+            //kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getEphPayload(), ephTopic);
+            map.put("EPH",messageEventTracker.getBody().getEphPayload());
 
         }
-
+        return map;
 
     }
 

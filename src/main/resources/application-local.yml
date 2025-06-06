@@ -7,25 +7,63 @@ logging:
     #DEBUG
 
 spring:
-  kafka:
-    listener:
-      concurrency: 1
-    consumer:
-      properties:
-        bootstrap.servers: 34.28.251.45:9092
-        #34.28.251.45:9092
-        #20.192.24.194:39092
-        auto.offset.reset: earliest
-        key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
-        value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
-        group.id: nil-router-consumer
-    producer:
-      properties:
-        bootstrap.servers: 34.28.251.45:9092
-        key.serializer: org.apache.kafka.common.serialization.StringSerializer
-        value.serializer: org.apache.kafka.common.serialization.StringSerializer
-        enable.auto.commit: false
-        missing.topics.fatal: false
+  application:
+    name: nil-router
+
+  cloud:
+    stream:
+      function:
+        definition: processStream
+
+      bindings:
+        processStream-in-0:
+          destination: TOPIC
+          contentType: text/plain
+          consumer:
+            useNativeDecoding: true
+
+        processStream-out-0:
+          destination: FCTOPIC
+          contentType: text/plain
+          producer:
+            useNativeEncoding: true
+
+        processStream-out-1:
+          destination: EPHTOPIC
+          contentType: text/plain
+          producer:
+            useNativeEncoding: true
+
+        processStream-out-2:
+          destination: SFMS
+          contentType: text/plain
+          producer:
+            useNativeEncoding: true
+
+        processStream-out-3:
+          destination: MSGEVENTTRACKERTOPIC
+          contentType: text/plain
+          producer:
+            useNativeEncoding: true
+
+      kafka:
+        streams:
+          binder:
+            brokers: 34.28.251.45:9092
+            functions:
+              processStream:
+                applicationId: nil-router
+            configuration:
+              default.key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+              default.value.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+              commit.interval.ms: 1000
+
+
+
+
+####################################################
+
+
 
   ######################################
   #########  DB PROPERTIES #############

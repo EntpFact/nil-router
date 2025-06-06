@@ -32,7 +32,9 @@ import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class InwardService {
@@ -58,7 +60,8 @@ public class InwardService {
     @Autowired
     private ObjectMapper objectMapper;
 
-    public void processFreshInward(String xmlPayload) throws Exception {
+    public Map<String, String> processFreshInward(String xmlPayload) throws Exception {
+        Map<String, String> map = new HashMap<>();
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         dbFactory.setNamespaceAware(true);
         DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
@@ -113,24 +116,25 @@ public class InwardService {
         String messageEventTrackerJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
 
 
-        kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
+        //kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
+        map.put("MET",messageEventTrackerJson);
 
         if(fcPresent)
         {
-            kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getFcPayload(), fcTopic);
-
+            //kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getFcPayload(), fcTopic);
+            map.put("FC",messageEventTracker.getBody().getFcPayload());
         }
         else
         {
-            kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getEphPayload(), ephTopic);
-
+            //kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getEphPayload(), ephTopic);
+            map.put("EPH",messageEventTracker.getBody().getEphPayload());
         }
 
-
+        return map;
     }
 
-    public void processLateReturn(String xmlPayload) throws Exception {
-
+    public Map<String, String> processLateReturn(String xmlPayload) throws Exception {
+        Map<String, String> map = new HashMap<>();
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         dbFactory.setNamespaceAware(true);
         DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
@@ -254,19 +258,21 @@ public class InwardService {
 
         String messageEventTrackerJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
 
-        kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
+        //kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
+        map.put("MET",messageEventTrackerJson);
 
         if(hasFC)
         {
-            kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getFcPayload(), fcTopic);
-
+            //kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getFcPayload(), fcTopic);
+            map.put("FC",messageEventTracker.getBody().getFcPayload());
         }
 
         if(hasEPH)
         {
-            kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getEphPayload(), ephTopic);
-
+            //kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getEphPayload(), ephTopic);
+            map.put("EPH",messageEventTracker.getBody().getEphPayload());
         }
+        return map;
     }
 
 

@@ -24,6 +24,8 @@ import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.xpath.XPathExpressionException;
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.HashMap;
+import java.util.Map;
 
 import static com.hdfcbank.nilrouter.utils.Constants.INWARD;
 import static com.hdfcbank.nilrouter.utils.Constants.NIL;
@@ -51,9 +53,9 @@ public class CamtXmlProcessor {
     @Autowired
     UtilityMethods utilityMethods;
 
-    @ServiceActivator(inputChannel = "camt_52_54")
-    public void parseXml(String xmlString) {
-
+    @ServiceActivator(inputChannel = "camt_52_54", outputChannel = "replyChannel")
+    public Map<String, String> parseXml(String xmlString) {
+        Map<String, String> map = new HashMap<>();
         String json = null;
 
         try {
@@ -101,11 +103,16 @@ public class CamtXmlProcessor {
         log.info("CAMT52 | CAMT54 Json : {}", json);
 
         // Send to message-event-tracker-service topic
-        kafkaUtils.publishToResponseTopic(json, msgEventTrackerTopic);
+        //kafkaUtils.publishToResponseTopic(json, msgEventTrackerTopic);
+        map.put("MET",json);
+        map.put("FC",xmlString);
+        map.put("EPH",xmlString);
 
         // Send to FC and EPH topic
-        kafkaUtils.publishToResponseTopic(xmlString, fcTopic);
-        kafkaUtils.publishToResponseTopic(xmlString, ephTopic);
+        //kafkaUtils.publishToResponseTopic(xmlString, fcTopic);
+        //kafkaUtils.publishToResponseTopic(xmlString, ephTopic);
+
+        return map;
     }
 }
 

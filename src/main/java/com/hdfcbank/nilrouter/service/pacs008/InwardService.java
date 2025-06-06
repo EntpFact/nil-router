@@ -269,6 +269,110 @@ public class InwardService {
         }
     }
 
+    public void processCugApproach(String xmlPayload) throws Exception {
+        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+        dbFactory.setNamespaceAware(true);
+        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+        Document originalDoc = dBuilder.parse(new InputSource(new StringReader(xmlPayload)));
+        originalDoc.getDocumentElement().normalize();
+
+        XPath xpath = XPathFactory.newInstance().newXPath();
+        NodeList txNodes = (NodeList) xpath.evaluate("//*[local-name()='CdtTrfTxInf']", originalDoc, XPathConstants.NODESET);
+        String msgId = utilityMethods.getBizMsgIdr(originalDoc);
+        String msgType = utilityMethods.getMsgDefIdr(originalDoc);
+        BigDecimal totalAmount = utilityMethods.getTotalAmount(originalDoc);
+
+
+        List<Node> Fc = new ArrayList<>();
+        List<Node> EPH = new ArrayList<>();
+        String fcXml = null;
+        String ephXml = null;
+        boolean fcPresent = false;
+        boolean ephPresent = false;
+        BigDecimal fcTotal = BigDecimal.valueOf(0);
+        BigDecimal ephTotal = BigDecimal.valueOf(0);
+
+        for (int i = 0; i < txNodes.getLength(); i++) {
+            Node tx = txNodes.item(i);
+
+
+            if (isValidCugAccount(tx)) {
+                EPH.add(tx);
+                ephPresent = true;
+                ephTotal = ephTotal.add(new BigDecimal(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='IntrBkSttlmAmt']")));
+            } else {
+                Fc.add(tx);
+                fcPresent = true;
+                fcTotal = fcTotal.add(new BigDecimal(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='IntrBkSttlmAmt']")));
+
+            }
+
+        }
+
+        MessageEventTracker messageEventTracker = new MessageEventTracker();
+
+        Body body = new Body();
+        body.setReqPayload(xmlPayload);
+
+        Header header = new Header();
+
+        header.setMsgId(msgId);
+        header.setMsgType(msgType);
+        header.setSource(Constants.NIL);
+        header.setTargetEPH(ephPresent);
+        header.setTargetFC(fcPresent);
+        header.setFlowType(Constants.INWARD);
+        header.setConsolidateAmt(totalAmount);
+        header.setOrignlReqCount(txNodes.getLength());
+        header.setIntermediateReqFCCount(Fc.size());
+        header.setIntermediateReqEPHCount(EPH.size());
+        header.setConsolidateAmtFC(fcTotal);
+        header.setConsolidateAmtEPH(ephTotal);
+
+
+        if (fcPresent) {
+            fcXml = buildNewXml(originalDoc, dBuilder, Fc);
+            body.setFcPayload(fcXml);
+        }
+        if (ephPresent) {
+            ephXml = buildNewXml(originalDoc, dBuilder, EPH);
+            body.setEphPayload(ephXml);
+        }
+
+        if (fcPresent && ephPresent) {
+            header.setTargetFCEPH(true);
+        }
+
+        messageEventTracker.setHeader(header);
+        messageEventTracker.setBody(body);
+
+        String messageEventTrackerJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
+
+        kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
+
+        if(fcPresent)
+        {
+            kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getFcPayload(), fcTopic);
+
+        }
+
+        if(ephPresent)
+        {
+            kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getEphPayload(), ephTopic);
+
+        }
+
+
+    }
+
+    private boolean isValidCugAccount(Node tx) throws Exception {
+        XPath xpath = XPathFactory.newInstance().newXPath();
+
+        String acctId = (String) xpath.evaluate(".//*[local-name()='CdtrAcct']/*[local-name()='Id']/*[local-name()='Othr']/*[local-name()='Id']", tx, XPathConstants.STRING);
+        return nilRepository.cugAccountExists(acctId);
+
+    }
+
 
     private String extractTransactionIdentifier(Node tx, XPath xpath) throws XPathExpressionException {
         // Try InstrInf

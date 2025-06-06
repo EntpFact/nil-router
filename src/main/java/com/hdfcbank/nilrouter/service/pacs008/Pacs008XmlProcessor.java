@@ -1,6 +1,11 @@
 package com.hdfcbank.nilrouter.service.pacs008;
 
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
+import com.hdfcbank.nilrouter.model.Body;
+import com.hdfcbank.nilrouter.model.Header;
+import com.hdfcbank.nilrouter.model.MessageEventTracker;
 import com.hdfcbank.nilrouter.service.AuditService;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,12 +31,11 @@ public class Pacs008XmlProcessor {
     @Autowired
     private InwardService inwardService;
 
-    @Autowired
-    AuditService auditService;
+    @Value("${topic.sfmstopic}")
+    private String sfmsTopic;
 
-
     @Autowired
-    private CugApproach cugApproach;
+    private ObjectMapper objectMapper;
 
     @Value("${topic.msgeventtrackertopic}")
     private String msgEventTrackerTopic;
@@ -42,14 +46,17 @@ public class Pacs008XmlProcessor {
     @Autowired
     private UtilityMethods utilityMethods;
 
+    @Autowired
+    private KafkaUtils kafkaUtils;
+
     @ServiceActivator(inputChannel = "pacs008")
     public void parseXml(String xmlString) throws Exception {
 
         if (utilityMethods.isOutward(xmlString)) {
-            auditService.constructOutwardJsonAndPublish(xmlString);
+            constructOutwardJsonAndPublish(xmlString);
         } else {
             if (cugFlag.equalsIgnoreCase("true")) {
-                cugApproach.processCugApproach(xmlString);
+                inwardService.processCugApproach(xmlString);
             } else {
                 if (containsReturnTags(xmlString)) {
                     inwardService.processLateReturn(xmlString);
@@ -58,6 +65,42 @@ public class Pacs008XmlProcessor {
                 }
             }
         }
+    }
+
+    public void constructOutwardJsonAndPublish(String xmlPayload) throws Exception {
+        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+        dbFactory.setNamespaceAware(true);
+        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+        Document originalDoc = dBuilder.parse(new InputSource(new StringReader(xmlPayload)));
+        originalDoc.getDocumentElement().normalize();
+
+        XPath xpath = XPathFactory.newInstance().newXPath();
+        NodeList txNodes = (NodeList) xpath.evaluate("//*[local-name()='CdtTrfTxInf']", originalDoc, XPathConstants.NODESET);
+
+
+        MessageEventTracker messageEventTracker = new MessageEventTracker();
+        Header header = new Header();
+        Body body = new Body();
+        header.setMsgId(utilityMethods.getBizMsgIdr(originalDoc));
+        header.setSource("NIL");
+        header.setMsgType(utilityMethods.getMsgDefIdr(originalDoc));
+        header.setConsolidateAmt(utilityMethods.getTotalAmount(originalDoc));
+        header.setFlowType("Outward");
+        header.setTargetSFMS(true);
+        header.setOrignlReqCount(txNodes.getLength());
+
+        body.setReqPayload(xmlPayload);
+
+        messageEventTracker.setBody(body);
+        messageEventTracker.setHeader(header);
+
+        String messageEventTrackerJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
+
+        kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
+
+        kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getReqPayload(), sfmsTopic);
+
+
     }
 
     public boolean containsReturnTags(String xmlPayload) throws Exception {

@@ -32,23 +32,13 @@ import java.io.StringReader;
 @Service
 public class AuditService {
 
-    @Autowired
-    private ObjectMapper objectMapper;
+
 
     @Autowired
     private NilRepository nilRepository;
 
     @Autowired
     private UtilityMethods utilityMethods;
-
-    @Autowired
-    private KafkaUtils kafkaUtils;
-
-    @Value("${topic.msgeventtrackertopic}")
-    private String msgEventTrackerTopic;
-
-    @Value("${topic.sfmstopic}")
-    private String sfmsTopic;
 
 
     public MsgEventTracker auditIncomingMessage(String xml) {
@@ -69,42 +59,4 @@ public class AuditService {
         }
         return msgEventTracker;
     }
-
-
-    public void constructOutwardJsonAndPublish(String xmlPayload) throws Exception {
-        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-        dbFactory.setNamespaceAware(true);
-        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-        Document originalDoc = dBuilder.parse(new InputSource(new StringReader(xmlPayload)));
-        originalDoc.getDocumentElement().normalize();
-
-        XPath xpath = XPathFactory.newInstance().newXPath();
-        NodeList txNodes = (NodeList) xpath.evaluate("//*[local-name()='CdtTrfTxInf']", originalDoc, XPathConstants.NODESET);
-
-
-        MessageEventTracker messageEventTracker = new MessageEventTracker();
-        Header header = new Header();
-        Body body = new Body();
-        header.setMsgId(utilityMethods.getBizMsgIdr(originalDoc));
-        header.setSource("NIL");
-        header.setMsgType(utilityMethods.getMsgDefIdr(originalDoc));
-        header.setConsolidateAmt(utilityMethods.getTotalAmount(originalDoc));
-        header.setFlowType("Outward");
-        header.setTargetSFMS(true);
-        header.setOrignlReqCount(txNodes.getLength());
-
-        body.setReqPayload(xmlPayload);
-
-        messageEventTracker.setBody(body);
-        messageEventTracker.setHeader(header);
-
-        String messageEventTrackerJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(messageEventTracker);
-
-        kafkaUtils.publishToResponseTopic(messageEventTrackerJson, msgEventTrackerTopic);
-
-        kafkaUtils.publishToResponseTopic(messageEventTracker.getBody().getReqPayload(), sfmsTopic);
-
-
-    }
-
 }

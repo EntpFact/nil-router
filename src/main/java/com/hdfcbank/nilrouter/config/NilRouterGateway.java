@@ -1,5 +1,6 @@
 package com.hdfcbank.nilrouter.config;
 
+import org.springframework.integration.annotation.Gateway;
 import org.springframework.integration.annotation.MessagingGateway;
 
 import java.util.Map;
@@ -7,7 +8,7 @@ import java.util.Map;
 /**
  * Gateway for request-reply to route XML and receive Map response
  */
-@MessagingGateway(defaultRequestChannel = "routingChannel", defaultReplyChannel = "replyChannel")
+@MessagingGateway
 interface NilRouterGateway {
     /**
      * The `route(String xml)` method is implemented at runtime by Spring Integration.
@@ -17,6 +18,7 @@ interface NilRouterGateway {
      * @Router and @ServiceActivator annotations handles the routing and processing,
      * returning a Map<String, String> response.
      */
+    @Gateway(requestChannel = "routingChannel", replyChannel = "replyChannel")
     Map<String, String> route(String xml);
 }
 

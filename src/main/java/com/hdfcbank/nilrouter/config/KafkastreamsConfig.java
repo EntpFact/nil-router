@@ -41,7 +41,6 @@ public class KafkastreamsConfig {
             log.info("Kakfa Streaming Started");
             KStream<String, String> output = input.flatMap((key, xml) -> {
 
-
                 // Audit Incoming message
                 auditService.auditIncomingMessage(xml);
                 // Process the XML message

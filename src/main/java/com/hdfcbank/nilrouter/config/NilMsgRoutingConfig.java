@@ -135,12 +135,4 @@ public class NilMsgRoutingConfig {
         return router;
     }
 
-    @Bean
-    public IntegrationFlow camt59Flow() {
-        return IntegrationFlow.from("camt59")
-                // your camt59 processing
-                .channel(replyChannel()) // if you want to collect final output
-                .get();
-    }
-
 }

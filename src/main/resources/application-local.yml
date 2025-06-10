@@ -52,11 +52,15 @@ spring:
             brokers: 34.28.251.45:9092
             functions:
               processStream:
-                applicationId: nil-router
+                applicationId: nilrouter
             configuration:
               default.key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
               default.value.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+              max.poll.interval.ms: 600000   # 10 minutes
               commit.interval.ms: 1000
+
+
+
 
 
 

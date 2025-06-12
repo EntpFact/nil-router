@@ -6,7 +6,6 @@ import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
 import com.hdfcbank.nilrouter.model.Body;
 import com.hdfcbank.nilrouter.model.Header;
 import com.hdfcbank.nilrouter.model.MessageEventTracker;
-import com.hdfcbank.nilrouter.utils.Constants;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,7 +31,13 @@ import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.IntStream;
+
+import static com.hdfcbank.nilrouter.utils.Constants.INWARD;
+import static com.hdfcbank.nilrouter.utils.Constants.NIL;
 
 @Service
 public class InwardService {
@@ -92,10 +97,10 @@ public class InwardService {
 
         header.setMsgId(msgId);
         header.setMsgType(msgType);
-        header.setSource(Constants.NIL);
+        header.setSource(NIL);
         header.setTargetEPH(ephPresent);
         header.setTargetFC(fcPresent);
-        header.setFlowType(Constants.INWARD);
+        header.setFlowType(INWARD);
         header.setConsolidateAmt(totalAmount);
         header.setOrignlReqCount(txNodes.getLength());
         if (fcPresent) {
@@ -157,8 +162,8 @@ public class InwardService {
         Header header = new Header();
         header.setMsgType(utilityMethods.getMsgDefIdr(originalDoc));
         header.setMsgId(utilityMethods.getBizMsgIdr(originalDoc));
-        header.setSource(Constants.NIL);
-        header.setFlowType(Constants.INWARD);
+        header.setSource(NIL);
+        header.setFlowType(INWARD);
         header.setOrignlReqCount(txNodes.getLength());
         header.setConsolidateAmt(utilityMethods.getTotalAmount(originalDoc));
 
@@ -197,57 +202,36 @@ public class InwardService {
 
         header.setTargetFC(hasFC);
         header.setTargetEPH(hasEPH);
-        if (hasFC && hasEPH) {
-            header.setTargetFCEPH(true);
+        header.setTargetFCEPH(hasFC && hasEPH);
+
+        // Merge freshTxns into EPH or FC
+        if (hasFresh) {
+            if (hasEPH) {
+                EPH.addAll(freshTxns);
+                ephTotal = ephTotal.add(freshTotal);
+            }
+           else if (hasFC) {
+                Fc.addAll(freshTxns);
+                fcTotal = fcTotal.add(freshTotal);
+            }
         }
 
-        if (hasFC && !hasEPH && !hasFresh) {
-
+       // Build FC XML if FC present
+        if (hasFC) {
             fcXml = buildNewXml(originalDoc, dBuilder, Fc);
             header.setIntermediateReqFCCount(Fc.size());
             header.setConsolidateAmtFC(fcTotal);
             body.setFcPayload(fcXml);
-
-        } else if (hasFC && !hasEPH && hasFresh) {
-
-            Fc.addAll(freshTxns);
-            fcTotal = fcTotal.add(freshTotal);
-            fcXml = buildNewXml(originalDoc, dBuilder, Fc);
-            header.setIntermediateReqFCCount(Fc.size());
-            header.setConsolidateAmtFC(fcTotal);
-            body.setFcPayload(fcXml);
-
-
-        } else if (!hasFC && hasEPH && !hasFresh) {
-
-            ephXml = buildNewXml(originalDoc, dBuilder, EPH);
-            header.setIntermediateReqEPHCount(EPH.size());
-            header.setConsolidateAmtEPH(ephTotal);
-            body.setEphPayload(ephXml);
-
-        } else if (!hasFC && hasEPH && hasFresh) {
-
-            EPH.addAll(freshTxns);
-            ephTotal = ephTotal.add(freshTotal);
-            ephXml = buildNewXml(originalDoc, dBuilder, EPH);
-            header.setIntermediateReqEPHCount(EPH.size());
-            header.setConsolidateAmtEPH(ephTotal);
-            body.setEphPayload(ephXml);
-
-        } else if (hasFC) {
-
-            fcXml = buildNewXml(originalDoc, dBuilder, Fc);
-            header.setIntermediateReqFCCount(Fc.size());
-            header.setConsolidateAmtFC(fcTotal);
-            body.setFcPayload(fcXml);
-            EPH.addAll(freshTxns);
-            ephTotal = ephTotal.add(freshTotal);
-            ephXml = buildNewXml(originalDoc, dBuilder, EPH);
-            header.setIntermediateReqEPHCount(EPH.size());
-            header.setConsolidateAmtEPH(ephTotal);
-            body.setEphPayload(ephXml);
-
         }
+
+        // Build EPH XML if EPH present
+        if (hasEPH) {
+            ephXml = buildNewXml(originalDoc, dBuilder, EPH);
+            header.setIntermediateReqEPHCount(EPH.size());
+            header.setConsolidateAmtEPH(ephTotal);
+            body.setEphPayload(ephXml);
+        }
+
 
         messageEventTracker.setHeader(header);
         messageEventTracker.setBody(body);
@@ -318,10 +302,10 @@ public class InwardService {
 
         header.setMsgId(msgId);
         header.setMsgType(msgType);
-        header.setSource(Constants.NIL);
+        header.setSource(NIL);
         header.setTargetEPH(ephPresent);
         header.setTargetFC(fcPresent);
-        header.setFlowType(Constants.INWARD);
+        header.setFlowType(INWARD);
         header.setConsolidateAmt(totalAmount);
         header.setOrignlReqCount(txNodes.getLength());
         header.setIntermediateReqFCCount(Fc.size());
@@ -386,29 +370,25 @@ public class InwardService {
 
         // Try all Ustrd
         NodeList ustrdNodes = (NodeList) xpath.evaluate(".//*[local-name()='Ustrd']", tx, XPathConstants.NODESET);
-        for (int i = 0; i < ustrdNodes.getLength(); i++) {
-            Node node = ustrdNodes.item(i);
-            if (node != null && node.getTextContent() != null) {
-                String text = node.getTextContent().trim();
-                String id = extractIdFromText(text);
-                if (id != null) return id;
-            }
-        }
-
-        return null;
+        return IntStream.range(0, ustrdNodes.getLength())
+                .mapToObj(ustrdNodes::item)
+                .map(Node::getTextContent)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .map(this::extractIdFromText)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 
     private String extractIdFromText(String text) {
-        String[] tokens = text.split("[^A-Za-z0-9]"); // Split by non-alphanumeric characters
-
-        for (String token : tokens) {
-            token = token.trim();
-            if ((token.startsWith("HDFCN") && token.length() == 22 && Character.isDigit(token.charAt(14)))) {
-                return token;
-            }
-        }
-
-        return null; // No valid ID found
+        return Arrays.stream(text.split("[^A-Za-z0-9]"))
+                .map(String::trim)
+                .filter(token -> token.startsWith("HDFCN"))
+                .filter(token -> token.length() == 22)
+                .filter(token -> Character.isDigit(token.charAt(14)))
+                .findFirst()
+                .orElse(null);
     }
 
 

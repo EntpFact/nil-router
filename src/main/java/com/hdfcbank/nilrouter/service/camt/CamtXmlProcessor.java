@@ -86,15 +86,7 @@ public class CamtXmlProcessor {
             json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(wrapper);
 
 
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        } catch (ParserConfigurationException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (SAXException e) {
-            throw new RuntimeException(e);
-        } catch (XPathExpressionException e) {
+        } catch (ParserConfigurationException | IOException | SAXException | XPathExpressionException e) {
             throw new RuntimeException(e);
         }
 

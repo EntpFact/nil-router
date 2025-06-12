@@ -21,8 +21,12 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
 import java.io.StringReader;
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.stream.IntStream;
 
 
 @Service
@@ -113,45 +117,56 @@ public class Pacs008XmlProcessor {
         XPath xpath = XPathFactory.newInstance().newXPath();
         NodeList txNodes = (NodeList) xpath.evaluate("//*[local-name()='CdtTrfTxInf']", doc, XPathConstants.NODESET);
 
-        for (int i = 0; i < txNodes.getLength(); i++) {
-            Node tx = txNodes.item(i);
+        return IntStream.range(0, txNodes.getLength())
+                .anyMatch(i -> {
+                    Node tx = txNodes.item(i);
 
-            // 1. Check InstrInf
-            Node instrInfNode = (Node) xpath.evaluate(".//*[local-name()='InstrForCdtrAgt']/*[local-name()='InstrInf']", tx, XPathConstants.NODE);
-            if (instrInfNode != null && instrInfNode.getTextContent() != null) {
-                String text = instrInfNode.getTextContent().trim();
-                if (containsValidId(text)) {
-                    return true;
-                }
-            }
+                    try {
+                        // 1. Check InstrInf
+                        Node instrInfNode = (Node) xpath.evaluate(
+                                ".//*[local-name()='InstrForCdtrAgt']/*[local-name()='InstrInf']",
+                                tx,
+                                XPathConstants.NODE
+                        );
+                        if (instrInfNode != null && instrInfNode.getTextContent() != null) {
+                            String text = instrInfNode.getTextContent().trim();
+                            if (containsValidId(text)) {
+                                return true;
+                            }
+                        }
 
-            // 2. Check all Ustrd
-            NodeList ustrdNodes = (NodeList) xpath.evaluate(".//*[local-name()='RmtInf']/*[local-name()='Ustrd']", tx, XPathConstants.NODESET);
-            for (int j = 0; j < ustrdNodes.getLength(); j++) {
-                Node ustrdNode = ustrdNodes.item(j);
-                if (ustrdNode != null && ustrdNode.getTextContent() != null) {
-                    String text = ustrdNode.getTextContent().trim();
-                    if (containsValidId(text)) {
-                        return true;
+                        // 2. Check all Ustrd
+                        NodeList ustrdNodes = (NodeList) xpath.evaluate(
+                                ".//*[local-name()='RmtInf']/*[local-name()='Ustrd']",
+                                tx,
+                                XPathConstants.NODESET
+                        );
+
+                        return IntStream.range(0, ustrdNodes.getLength())
+                                .mapToObj(ustrdNodes::item)
+                                .map(Node::getTextContent)
+                                .filter(Objects::nonNull)
+                                .map(String::trim)
+                                .anyMatch(this::containsValidId);
+
+                    } catch (XPathExpressionException e) {
+                        throw new RuntimeException(e); // Or handle as needed
                     }
-                }
-            }
-        }
+                });
 
-        return false; // No valid InstrInf or Ustrd found in any transaction
+//        return false; // No valid InstrInf or Ustrd found in any transaction
     }
 
     private boolean containsValidId(String text) {
-        // Valid if it contains a substring that starts with HDFCN (Transaction ID)
-        String[] tokens = text.split("[^A-Za-z0-9]");
-        for (String token : tokens) {
-            token = token.trim();
-            if ((token.startsWith("HDFCN") && token.length() == 22 && Character.isDigit(token.charAt(14)))) {
-                return true;
-            }
-        }
-        return false;
+        return Arrays.stream(text.split("[^A-Za-z0-9]"))
+                .map(String::trim)
+                .anyMatch(token ->
+                        token.startsWith("HDFCN") &&
+                                token.length() == 22 &&
+                                Character.isDigit(token.charAt(14))
+                );
     }
+
 
 
 }

@@ -1,7 +1,6 @@
 package com.hdfcbank.nilrouter.service.camt;
 
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
@@ -17,7 +16,6 @@ import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -39,8 +37,10 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
 import static com.hdfcbank.nilrouter.utils.Constants.*;
 
@@ -112,15 +112,7 @@ public class Camt59XmlProcessor {
                 log.info("Camt59 Outward Json : {}", json);
 
 
-            } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
-            } catch (ParserConfigurationException e) {
-                throw new RuntimeException(e);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            } catch (SAXException e) {
-                throw new RuntimeException(e);
-            } catch (XPathExpressionException e) {
+            } catch (ParserConfigurationException | IOException | SAXException | XPathExpressionException e) {
                 throw new RuntimeException(e);
             }
 
@@ -264,15 +256,12 @@ public class Camt59XmlProcessor {
         newDoc.appendChild(root);
 
         //  Dynamically copy <AppHdr> preserving namespaces
-        NodeList children = document.getDocumentElement().getChildNodes();
-        for (int i = 0; i < children.getLength(); i++) {
-            Node child = children.item(i);
-            if ("AppHdr".equals(child.getLocalName())) {
-                Node importedAppHdr = newDoc.importNode(child, true);
-                root.appendChild(importedAppHdr);
-                break;
-            }
-        }
+        IntStream.range(0, document.getDocumentElement().getChildNodes().getLength())
+                .mapToObj(i -> document.getDocumentElement().getChildNodes().item(i))
+                .filter(node -> "AppHdr".equals(node.getLocalName()))
+                .findFirst()
+                .ifPresent(node -> root.appendChild(newDoc.importNode(node, true)));
+
 
         XPath xpath = XPathFactory.newInstance().newXPath();
 
@@ -297,33 +286,40 @@ public class Camt59XmlProcessor {
             // Process <OrgnlNtfctnRef> and filter <OrgnlItmAndSts>
             NodeList orgnlNtfctnRefs = originalDocument.getElementsByTagNameNS("*", "OrgnlNtfctnRef");
             Element newOrgnlNtfctnAndSts = newDoc.createElementNS(namespaceUri, "OrgnlNtfctnAndSts");
-            boolean hasValidEntries = false;
+            AtomicBoolean hasValidEntries = new AtomicBoolean(false);
 
-            for (int i = 0; i < orgnlNtfctnRefs.getLength(); i++) {
-                Element orgnlNtfctnRef = (Element) orgnlNtfctnRefs.item(i);
-                NodeList itmAndStsList = orgnlNtfctnRef.getElementsByTagNameNS("*", "OrgnlItmAndSts");
+            IntStream.range(0, orgnlNtfctnRefs.getLength())
+                    .mapToObj(i -> (Element) orgnlNtfctnRefs.item(i))
+                    .forEach(orgnlNtfctnRef -> {
+                        NodeList itmAndStsList = orgnlNtfctnRef.getElementsByTagNameNS("*", "OrgnlItmAndSts");
 
-                for (int j = 0; j < itmAndStsList.getLength(); j++) {
-                    Element orgnlItmAndSts = (Element) itmAndStsList.item(j);
-                    String orgnlItmId = xpath.evaluate("./*[local-name()='OrgnlItmId']", orgnlItmAndSts);
+                        IntStream.range(0, itmAndStsList.getLength())
+                                .mapToObj(j -> (Element) itmAndStsList.item(j))
+                                .filter(orgnlItmAndSts -> {
+                                    try {
+                                        String orgnlItmId = xpath.evaluate("./*[local-name()='OrgnlItmId']", orgnlItmAndSts);
+                                        int digit = extractOrgnlItmIdDigit(orgnlItmId);
+                                        return digit >= minDigit && digit <= maxDigit;
+                                    } catch (XPathExpressionException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                })
+                                .forEach(orgnlItmAndSts -> {
+                                    Element newOrgnlNtfctnRef = newDoc.createElementNS(namespaceUri, "OrgnlNtfctnRef");
 
-                    int digit = extractOrgnlItmIdDigit(orgnlItmId);
-                    if (digit >= minDigit && digit <= maxDigit) {
-                        Element newOrgnlNtfctnRef = newDoc.createElementNS(namespaceUri, "OrgnlNtfctnRef");
+                                    NodeList dbtrAgtList = orgnlNtfctnRef.getElementsByTagNameNS("*", "DbtrAgt");
+                                    if (dbtrAgtList.getLength() > 0) {
+                                        newOrgnlNtfctnRef.appendChild(newDoc.importNode(dbtrAgtList.item(0), true));
+                                    }
 
-                        NodeList dbtrAgtList = orgnlNtfctnRef.getElementsByTagNameNS("*", "DbtrAgt");
-                        if (dbtrAgtList.getLength() > 0) {
-                            newOrgnlNtfctnRef.appendChild(newDoc.importNode(dbtrAgtList.item(0), true));
-                        }
+                                    newOrgnlNtfctnRef.appendChild(newDoc.importNode(orgnlItmAndSts, true));
+                                    newOrgnlNtfctnAndSts.appendChild(newOrgnlNtfctnRef);
+                                    hasValidEntries.set(true);
+                                });
+                    });
 
-                        newOrgnlNtfctnRef.appendChild(newDoc.importNode(orgnlItmAndSts, true));
-                        newOrgnlNtfctnAndSts.appendChild(newOrgnlNtfctnRef);
-                        hasValidEntries = true;
-                    }
-                }
-            }
 
-            if (hasValidEntries) {
+            if (hasValidEntries.get()) {
                 ntfctnToRcvStsRpt.appendChild(newOrgnlNtfctnAndSts);
             }
         }

@@ -44,3 +44,10 @@ topic:
   msgeventtrackertopic: ${MSGTOPIC:MSGEVENTTRACKERTOPIC}
 
 cug_flag: ${CUG_FLAG:false}
+ibm:
+  mq:
+    queue-manager: QM1
+    channel: DEV.ADMIN.SVRCONN
+    conn-name: 34.28.251.45(1414)
+    user: admin
+    password: passw0rd

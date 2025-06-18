@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hdfcbank.nilrouter.dao.NilRepository;
 import com.hdfcbank.nilrouter.kafkaproducer.KafkaUtils;
 import com.hdfcbank.nilrouter.model.*;
+import com.hdfcbank.nilrouter.mq.MQService;
 import com.hdfcbank.nilrouter.service.AuditService;
 import com.hdfcbank.nilrouter.utils.UtilityMethods;
 import lombok.extern.slf4j.Slf4j;
@@ -72,6 +73,8 @@ public class Pacs004XmlProcessor {
 
     @Autowired
     AuditService outwardService;
+    @Autowired
+    MQService mqService;
 
     @ServiceActivator(inputChannel = "pacs004")
     public void parseXml(String xmlString) throws Exception {
@@ -112,7 +115,7 @@ public class Pacs004XmlProcessor {
                 // Send json to Message Tracker service
                 kafkautils.publishToResponseTopic(json, msgEventTrackerTopic);
 
-
+                mqService.sendMessageToMq(json);
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             } catch (ParserConfigurationException e) {
@@ -130,6 +133,7 @@ public class Pacs004XmlProcessor {
             //Send to SFMS
             kafkautils.publishToResponseTopic(xmlString, sfmstopic);
 
+           mqService.sendMessageToMq(json);
         } else {
             processXML(xmlString);
         }

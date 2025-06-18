@@ -7,6 +7,7 @@ import com.hdfcbank.nilrouter.exception.NILException;
 import com.hdfcbank.nilrouter.model.Response;
 import com.hdfcbank.nilrouter.service.AuditService;
 import lombok.extern.slf4j.Slf4j;
+import com.hdfcbank.nilrouter.mq.MQService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -36,6 +37,9 @@ public class ProcessController {
 
     @Autowired
     AuditService auditService;
+
+    @Autowired
+    MQService mqService;
 
     @CrossOrigin
     @GetMapping(path = "/healthz")
@@ -126,7 +130,11 @@ public class ProcessController {
         return xml.replaceAll("^[^<]+", "");  // Removes any non-XML leading junk
     }
 
+    @PostMapping("/sendMessageToMq")
+    public String PushMessagetoMq(@RequestBody String message) {
 
+        return mqService.sendMessageToMq(message);
+    }
     @CrossOrigin
     @PostMapping("/testProcess")
     public Mono<ResponseEntity<Response>> testProcess(@RequestBody String request) throws JsonProcessingException {

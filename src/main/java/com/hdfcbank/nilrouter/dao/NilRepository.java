@@ -4,11 +4,13 @@ import com.hdfcbank.nilrouter.model.MsgEventTracker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static com.hdfcbank.nilrouter.utils.Constants.RECEIVED;
 
@@ -19,6 +21,9 @@ public class NilRepository {
 
     @Autowired
     NamedParameterJdbcTemplate namedParameterJdbcTemplate;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
 
     public String findTargetByTxnId(String txnId) {
@@ -60,15 +65,9 @@ public class NilRepository {
 
     }
 
-    public boolean cugAccountExists(String accountNo) {
-        String sql = "SELECT COUNT(*) FROM network_il.cug_account WHERE cug_account_no = :accountNo";
-
-        MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("accountNo", accountNo);
-
-        Integer count = namedParameterJdbcTemplate.queryForObject(sql, params, Integer.class);
-
-        return count != null && count > 0;
+    public List<String> getAllCugAccountNumbers() {
+        String sql = "SELECT cug_account_no FROM network_il.cug_account";
+        return jdbcTemplate.queryForList(sql, String.class);
     }
 
 }

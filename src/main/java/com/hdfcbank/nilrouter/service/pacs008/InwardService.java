@@ -266,6 +266,8 @@ public class InwardService {
         String msgType = utilityMethods.getMsgDefIdr(originalDoc);
         BigDecimal totalAmount = utilityMethods.getTotalAmount(originalDoc);
 
+        List<String> cugAccountNumbers = nilRepository.getAllCugAccountNumbers();
+
 
         List<Node> Fc = new ArrayList<>();
         List<Node> EPH = new ArrayList<>();
@@ -279,8 +281,10 @@ public class InwardService {
         for (int i = 0; i < txNodes.getLength(); i++) {
             Node tx = txNodes.item(i);
 
+            String accountNo = (String) xpath.evaluate(".//*[local-name()='CdtrAcct']/*[local-name()='Id']/*[local-name()='Othr']/*[local-name()='Id']", tx, XPathConstants.STRING);
 
-            if (isValidCugAccount(tx)) {
+
+            if (cugAccountNumbers.contains(accountNo)) {
                 EPH.add(tx);
                 ephPresent = true;
                 ephTotal = ephTotal.add(new BigDecimal(utilityMethods.evaluateText(xpath, tx, ".//*[local-name()='IntrBkSttlmAmt']")));
@@ -349,13 +353,13 @@ public class InwardService {
 
     }
 
-    private boolean isValidCugAccount(Node tx) throws Exception {
-        XPath xpath = XPathFactory.newInstance().newXPath();
-
-        String acctId = (String) xpath.evaluate(".//*[local-name()='CdtrAcct']/*[local-name()='Id']/*[local-name()='Othr']/*[local-name()='Id']", tx, XPathConstants.STRING);
-        return nilRepository.cugAccountExists(acctId);
-
-    }
+//    private boolean isValidCugAccount(Node tx) throws Exception {
+//        XPath xpath = XPathFactory.newInstance().newXPath();
+//
+//        String acctId = (String) xpath.evaluate(".//*[local-name()='CdtrAcct']/*[local-name()='Id']/*[local-name()='Othr']/*[local-name()='Id']", tx, XPathConstants.STRING);
+//        return nilRepository.cugAccountExists(acctId);
+//
+//    }
 
 
     private String extractTransactionIdentifier(Node tx, XPath xpath) throws XPathExpressionException {

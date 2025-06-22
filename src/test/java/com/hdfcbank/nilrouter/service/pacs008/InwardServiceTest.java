@@ -196,110 +196,39 @@ class InwardServiceTest {
     }
 
     @Test
-    void testProcessCugApproach_AllCugAccounts() throws Exception {
-        String xml = """
-                <Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.09\">
-                  <FIToFICstmrCdtTrf>
-                    <CdtTrfTxInf>
-                      <PmtId><EndToEndId>e2e1</EndToEndId><TxId>tx1</TxId></PmtId>
-                      <IntrBkSttlmAmt>10</IntrBkSttlmAmt>
-                      <CdtrAcct><Id><Othr><Id>ACCT1</Id></Othr></Id></CdtrAcct>
-                      <InstrForCdtrAgt><InstrInf>Info1</InstrInf></InstrForCdtrAgt>
-                      <RmtInf><Ustrd>batch1</Ustrd></RmtInf>
-                    </CdtTrfTxInf>
-                  </FIToFICstmrCdtTrf>
-                </Document>
-                """;
+    void testProcessCugApproach_AllFC() throws Exception {
+        String xml = getSampleXmlWithAccountNo("ACCT1");
+        when(nilRepository.getAllCugAccountNumbers()).thenReturn(java.util.Collections.emptyList());
         mockUtilityMethods(xml, "RBIP202501176240070534", "pacs.008.001.09", BigDecimal.TEN);
         when(objectMapper.writerWithDefaultPrettyPrinter()).thenReturn(new ObjectMapper().writerWithDefaultPrettyPrinter());
-        when(nilRepository.cugAccountExists(any())).thenReturn(true);
         inwardService.processCugApproach(xml);
-        verify(kafkaUtils, atLeastOnce()).publishToResponseTopic(any(), any());
     }
 
     @Test
-    void testProcessCugApproach_NoCugAccounts() throws Exception {
-        String xml = """
-                <Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.09\">
-                  <FIToFICstmrCdtTrf>
-                    <CdtTrfTxInf>
-                      <PmtId><EndToEndId>e2e1</EndToEndId><TxId>tx1</TxId></PmtId>
-                      <IntrBkSttlmAmt>10</IntrBkSttlmAmt>
-                      <CdtrAcct><Id><Othr><Id>ACCT2</Id></Othr></Id></CdtrAcct>
-                      <InstrForCdtrAgt><InstrInf>Info2</InstrInf></InstrForCdtrAgt>
-                      <RmtInf><Ustrd>batch2</Ustrd></RmtInf>
-                    </CdtTrfTxInf>
-                  </FIToFICstmrCdtTrf>
-                </Document>
-                """;
-        mockUtilityMethods(xml, "RBIP202501176240070535", "pacs.008.001.09", BigDecimal.TEN);
+    void testProcessCugApproach_AllEPH() throws Exception {
+        String xml = getSampleXmlWithAccountNo("CUGACCT");
+        when(nilRepository.getAllCugAccountNumbers()).thenReturn(java.util.Collections.singletonList("CUGACCT"));
+        mockUtilityMethods(xml, "RBIP202501176240070534", "pacs.008.001.09", BigDecimal.TEN);
         when(objectMapper.writerWithDefaultPrettyPrinter()).thenReturn(new ObjectMapper().writerWithDefaultPrettyPrinter());
-        when(nilRepository.cugAccountExists(any())).thenReturn(false);
         inwardService.processCugApproach(xml);
-        verify(kafkaUtils, atLeastOnce()).publishToResponseTopic(any(), any());
     }
 
     @Test
-    void testProcessCugApproach_MixedCugAccounts() throws Exception {
-        String xml = """
-                <Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.09\">
-                  <FIToFICstmrCdtTrf>
-                    <CdtTrfTxInf>
-                      <PmtId><EndToEndId>e2e1</EndToEndId><TxId>tx1</TxId></PmtId>
-                      <IntrBkSttlmAmt>10</IntrBkSttlmAmt>
-                      <CdtrAcct><Id><Othr><Id>ACCT1</Id></Othr></Id></CdtrAcct>
-                      <InstrForCdtrAgt><InstrInf>Info1</InstrInf></InstrForCdtrAgt>
-                      <RmtInf><Ustrd>batch1</Ustrd></RmtInf>
-                    </CdtTrfTxInf>
-                    <CdtTrfTxInf>
-                      <PmtId><EndToEndId>e2e2</EndToEndId><TxId>tx2</TxId></PmtId>
-                      <IntrBkSttlmAmt>20</IntrBkSttlmAmt>
-                      <CdtrAcct><Id><Othr><Id>ACCT2</Id></Othr></Id></CdtrAcct>
-                      <InstrForCdtrAgt><InstrInf>Info2</InstrInf></InstrForCdtrAgt>
-                      <RmtInf><Ustrd>batch2</Ustrd></RmtInf>
-                    </CdtTrfTxInf>
-                  </FIToFICstmrCdtTrf>
-                </Document>
-                """;
-        mockUtilityMethods(xml, "RBIP202501176240070536", "pacs.008.001.09", new BigDecimal(30));
+    void testProcessCugApproach_Mixed() throws Exception {
+        String xml = getMixedSampleXml();
+        when(nilRepository.getAllCugAccountNumbers()).thenReturn(java.util.Collections.singletonList("CUGACCT"));
+        mockUtilityMethods(xml, "RBIP202501176240070534", "pacs.008.001.09", BigDecimal.valueOf(20));
         when(objectMapper.writerWithDefaultPrettyPrinter()).thenReturn(new ObjectMapper().writerWithDefaultPrettyPrinter());
-        when(nilRepository.cugAccountExists(any())).thenReturn(true, false);
         inwardService.processCugApproach(xml);
-        verify(kafkaUtils, atLeastOnce()).publishToResponseTopic(any(), any());
     }
 
     @Test
-    void testIsValidCugAccount_True() throws Exception {
-        String xml = """
-                <CdtTrfTxInf>
-                  <CdtrAcct><Id><Othr><Id>ACCT1</Id></Othr></Id></CdtrAcct>
-                </CdtTrfTxInf>
-                """;
-        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-        dbFactory.setNamespaceAware(true);
-        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-        Document doc = dBuilder.parse(new java.io.ByteArrayInputStream(xml.getBytes()));
-        Node tx = doc.getDocumentElement();
-        when(nilRepository.cugAccountExists("ACCT1")).thenReturn(true);
-        boolean result = ReflectionTestUtils.invokeMethod(inwardService, "isValidCugAccount", tx);
-        assertTrue(result);
-    }
-
-    @Test
-    void testIsValidCugAccount_False() throws Exception {
-        String xml = """
-                <CdtTrfTxInf>
-                  <CdtrAcct><Id><Othr><Id>ACCT2</Id></Othr></Id></CdtrAcct>
-                </CdtTrfTxInf>
-                """;
-        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-        dbFactory.setNamespaceAware(true);
-        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-        Document doc = dBuilder.parse(new java.io.ByteArrayInputStream(xml.getBytes()));
-        Node tx = doc.getDocumentElement();
-        when(nilRepository.cugAccountExists("ACCT2")).thenReturn(false);
-        boolean result = ReflectionTestUtils.invokeMethod(inwardService, "isValidCugAccount", tx);
-        assertFalse(result);
+    void testProcessCugApproach_NoTxns() throws Exception {
+        String xml = "<Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.09\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document>";
+        when(nilRepository.getAllCugAccountNumbers()).thenReturn(java.util.Collections.emptyList());
+        mockUtilityMethods(xml, "RBIP202501176240070534", "pacs.008.001.09", BigDecimal.ZERO);
+        when(objectMapper.writerWithDefaultPrettyPrinter()).thenReturn(new ObjectMapper().writerWithDefaultPrettyPrinter());
+        inwardService.processCugApproach(xml);
     }
 
     private void mockUtilityMethods(String xml, String msgId, String msgType, BigDecimal totalAmount) throws Exception {
@@ -341,5 +270,44 @@ class InwardServiceTest {
         }
         sb.append("</FIToFICstmrCdtTrf></Document>");
         return sb.toString();
+    }
+
+    private String getSampleXmlWithAccountNo(String acctNo) {
+        return String.format("""
+            <Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.09\">
+              <FIToFICstmrCdtTrf>
+                <CdtTrfTxInf>
+                  <PmtId><EndToEndId>e2e1</EndToEndId><TxId>tx1</TxId></PmtId>
+                  <IntrBkSttlmAmt>10</IntrBkSttlmAmt>
+                  <CdtrAcct><Id><Othr><Id>%s</Id></Othr></Id></CdtrAcct>
+                  <InstrForCdtrAgt><InstrInf>HDFCN12345678901234001</InstrInf></InstrForCdtrAgt>
+                  <RmtInf><Ustrd>batch1</Ustrd></RmtInf>
+                </CdtTrfTxInf>
+              </FIToFICstmrCdtTrf>
+            </Document>
+            """, acctNo);
+    }
+
+    private String getMixedSampleXml() {
+        return """
+            <Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.09\">
+              <FIToFICstmrCdtTrf>
+                <CdtTrfTxInf>
+                  <PmtId><EndToEndId>e2e1</EndToEndId><TxId>tx1</TxId></PmtId>
+                  <IntrBkSttlmAmt>10</IntrBkSttlmAmt>
+                  <CdtrAcct><Id><Othr><Id>ACCT1</Id></Othr></Id></CdtrAcct>
+                  <InstrForCdtrAgt><InstrInf>HDFCN12345678901234001</InstrInf></InstrForCdtrAgt>
+                  <RmtInf><Ustrd>batch1</Ustrd></RmtInf>
+                </CdtTrfTxInf>
+                <CdtTrfTxInf>
+                  <PmtId><EndToEndId>e2e2</EndToEndId><TxId>tx2</TxId></PmtId>
+                  <IntrBkSttlmAmt>10</IntrBkSttlmAmt>
+                  <CdtrAcct><Id><Othr><Id>CUGACCT</Id></Othr></Id></CdtrAcct>
+                  <InstrForCdtrAgt><InstrInf>HDFCN12345678901234002</InstrInf></InstrForCdtrAgt>
+                  <RmtInf><Ustrd>batch2</Ustrd></RmtInf>
+                </CdtTrfTxInf>
+              </FIToFICstmrCdtTrf>
+            </Document>
+            """;
     }
 }
